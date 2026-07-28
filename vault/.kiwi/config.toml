@@ -6,18 +6,10 @@ template = "blank"
 engine = "sqlite"
 
 [search.vector]
-enabled = true
-worker_count = 2
-
-[search.vector.embedder]
-provider = "onnx"
-model_path = "~/.kiwi/models/multilingual-e5-small/onnx/model.onnx"
-dimensions = 384
-query_prefix = "query: "
-passage_prefix = "passage: "
-
-[search.vector.store]
-provider = "sqlite-vec"
+enabled = false
+# To enable: set enabled = true and build KiwiFS with -tags onnx,
+# or configure an Ollama/OpenAI-compatible endpoint.
+# See https://docs.kiwifs.com/configuration#vector-search
 
 [versioning]
 strategy = "git"

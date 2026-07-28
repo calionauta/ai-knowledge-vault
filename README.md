@@ -214,11 +214,12 @@ cd .kiwi
 ln -sf ../AGENTS.md playbook.md
 ```
 
-> **About the ONNX model:** `multilingual-e5-small` supports 100+ languages
-> (including pt-BR, en-US, es, etc.). Download it with:
-> ```bash
-> kiwifs model download multilingual-e5-small --root ./my-vault
-> ```
+> **Vector search note:** The pre-built KiwiFS Docker image does not include
+> ONNX runtime. Vector/semantic search is disabled by default. Full-text
+> search (BM25/FTS5) works out of the box. To enable vector search, either:
+> - Build a custom Docker image with `go build -tags onnx` 
+> - Or configure an Ollama/OpenAI-compatible embedder in `config.toml`
+> See [KiwiFS vector search docs](https://docs.kiwifs.com/configuration#vector-search).
 
 ### Docker
 
