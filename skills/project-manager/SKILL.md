@@ -35,6 +35,12 @@ It supports multiple backends via adapters. Configure your backend in:
 ~/.mercury/project-manager-config.yaml
 ```
 
+## CRITICAL: Docker volume permissions
+
+The KiwiFS vault is inside a Docker container. NEVER run sed, echo >, or
+other shell file-writing commands against the vault filesystem.
+Use curl to the KiwiFS REST API (port 3333) or `docker exec` instead.
+
 Example config:
 ```yaml
 adapter: multica  # or: runfusion, multigent, mercury-native
@@ -104,15 +110,13 @@ List all registered projects:
 fn project list
 ```
 
-List tasks for a specific project (REQUIRED — Fusion needs --project):
+List tasks for a project (REQUIRED: use --project flag):
 ```bash
 fn task list --project <project-name>
-fn task list --project stelow --json
 ```
 
 Create task:
 ```bash
-fn task create "Task title"
 fn task create "Task title" --project <project-name>
 ```
 
@@ -124,19 +128,8 @@ fn task show <task-id>
 ### Setup
 
 1. Install: `npm install -g @runfusion/fusion`
-2. Start dashboard: `fn dashboard --port 4040 --host 0.0.0.0 --no-auth`
-3. The API is now available at http://127.0.0.1:4040
-
-Show task:
-```bash
-fn task show <task-id>
-```
-
-### Setup
-
-1. Install: `npm install -g @runfusion/fusion`
-2. Initialize: `fn init` in your project directory
-3. Start dashboard: `fn dashboard`
+2. Register a project: `fn project add <name> <path>`
+3. Start dashboard: `fn dashboard --port 4040 --host 100.120.175.47 --no-auth`
 
 ---
 
