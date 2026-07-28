@@ -1,7 +1,7 @@
 # Notes Vault
 
-> A personal knowledge vault powered by KiwiFS + Mercury Agent.  
-> Searchable. Versioned. Accessible via Telegram. Compiled by AI.
+> `knowledge-vault` covers notes, projects, wiki compilation, and agent
+> automation — everything an AI-augmented knowledge base needs.
 
 [Why](#why) · [Architecture](#architecture) · [Quick Start](#quick-start) · [Local vs Server](#local-vs-server) · [KiwiFS Setup](#kiwif-configuration) · [Mercury Setup](#mercury-configuration) · [Skills](#skills) · [LLM Wiki](#llm-wiki-pattern) · [Project Management](#project-management) · [Vault Structure](#vault-structure) · [Troubleshooting](#troubleshooting)
 

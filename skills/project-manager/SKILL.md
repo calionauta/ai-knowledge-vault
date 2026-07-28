@@ -80,66 +80,60 @@ multica agent tasks <agent_id> --output json
 
 ---
 
-## Adapter: runfusion
+## Adapter: runfusion (Fusion)
 
-Requires: API key configured in environment variable `RUNFUSION_API_KEY`.
+Requires: `fn` CLI installed. Install: `npm install -g @runfusion/fusion` or `brew install runfusion/fusion/fusion`.
 
 ### Commands
 
 List projects:
 ```bash
-curl -s -H "Authorization: Bearer $RUNFUSION_API_KEY" \
-  "https://api.runfusion.ai/v1/projects"
-```
-
-Get project:
-```bash
-curl -s -H "Authorization: Bearer $RUNFUSION_API_KEY" \
-  "https://api.runfusion.ai/v1/projects/<id>"
+fn project list
 ```
 
 Create task:
 ```bash
-curl -s -X POST -H "Authorization: Bearer $RUNFUSION_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"project_id":"<id>","title":"...","description":"..."}' \
-  "https://api.runfusion.ai/v1/tasks"
+fn task create "Task title"
+fn task create "Task title" --project <project-name>
+```
+
+List tasks:
+```bash
+fn task list
+fn task list --project <project-name>
+```
+
+Show task:
+```bash
+fn task show <task-id>
 ```
 
 ### Setup
 
-1. Get API key from https://runfusion.ai/settings
-2. Set environment: `export RUNFUSION_API_KEY="sk-..."`
+1. Install: `npm install -g @runfusion/fusion`
+2. Initialize: `fn init` in your project directory
+3. Start dashboard: `fn dashboard`
 
 ---
 
 ## Adapter: multigent
 
-Requires: `multigent` CLI or API key.
+Requires: `multigent` CLI installed.
 
-### Commands
+> **Note:** multigent adapter commands are a template. The exact CLI may vary
+> by version. Adjust commands based on your installed version's help output.
 
-List agents:
+### Typical commands
+
 ```bash
-multigent agent list
-```
-
-List tasks:
-```bash
+multigent project list
 multigent task list --project <id>
-```
-
-Create task:
-```bash
-multigent task create --project <id> --title "..." --description "..."
+multigent task create --project <id> --title "..."
 ```
 
 ### Setup
 
-```bash
-pip install multigent
-multigent config set api-key <your-key>
-```
+Follow the official multigent install guide for your platform.
 
 ---
 
