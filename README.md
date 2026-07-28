@@ -83,7 +83,7 @@ kiwifs serve --root ./my-vault
 
 ```
 I want to set up a Notes Vault based on:
-https://github.com/calionauta/notes-vault-template
+https://github.com/calionauta/knowledge-vault
 
 Guide me through the setup step by step.
 Start by asking me:
