@@ -190,10 +190,28 @@ provider = "sqlite-vec"
 [versioning]
 strategy = "git"
 
+[memory]
+episodes_path_prefix = "raw/"
+
 [janitor]
 stale_days = 90
 check_orphans = true
 check_broken_links = true
+```
+
+> The `episodes_path_prefix = "raw/"` config tells KiwiFS to track raw notes
+> as episodic memory. Use `curl http://localhost:3333/api/kiwi/memory/report`
+> to see which notes haven't been compiled into wiki pages yet.
+
+### Symlink playbook → AGENTS.md
+
+For MCP-capable agents (Claude Desktop, Cursor), KiwiFS exposes a playbook
+via `kiwi://playbook`. Symlink it to AGENTS.md so both interfaces get the
+same instructions:
+
+```bash
+cd .kiwi
+ln -sf ../AGENTS.md playbook.md
 ```
 
 > **About the ONNX model:** `multilingual-e5-small` supports 100+ languages

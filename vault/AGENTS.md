@@ -111,3 +111,21 @@ git push origin main
 ```
 
 KiwiFS auto-commits every write. Push periodically to GitHub.
+
+## Memory Report (consolidation tracking)
+
+KiwiFS provides a memory report that shows which raw notes have not yet
+been compiled into wiki pages. Run to check compilation coverage:
+
+```bash
+curl -s "http://localhost:3333/api/kiwi/memory/report?episodes_prefix=raw/"
+```
+
+Returns a list of files in `raw/` not yet referenced by any `wiki/` page
+via `merged-from` frontmatter. Use this to decide what to compile next.
+
+## KiwiFS Agent Playbook
+
+`/data/.kiwi/playbook.md` is a symlink to this file (`AGENTS.md`).
+KiwiFS serves it via MCP as `kiwi://playbook` for agents that connect
+via the Model Context Protocol (Claude Desktop, Cursor, etc.).

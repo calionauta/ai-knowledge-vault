@@ -26,3 +26,6 @@ strategy = "git"
 stale_days = 90
 check_orphans = true
 check_broken_links = true
+
+[memory]
+episodes_path_prefix = "raw/"
