@@ -43,16 +43,42 @@ wiki/             # Compiled knowledge (agent owns this layer)
 6. **Use `[[wikilinks]]`** to connect related pages.
 7. ** Read `schema.md` for full workflow instructions** (ingest, research, consolidate, health, lint).
 
+## Wiki Links (instead of tags)
+
+Use `[[Topics/name]]` for ALL cross-references. DO NOT use `#tags`.
+
+Wikilinks are superior to hashtags because:
+- **Bidirectional** — KiwiFS shows backlinks on every page
+- **Graph-enabled** — every link creates an edge in the knowledge graph
+- **Contextual** — links live in sentences, showing WHY they exist
+- **Portable** — works in any markdown viewer, no plugin needed
+- **Nestable** — `[[Topics/pai/filho]]` for hierarchical grouping
+
+Examples:
+```markdown
+- [[Topics/ProjectManagement]] — reference topic
+- [[Topics/terapia/abordagens]] — nested topic
+- [[People/Fulano]] — person profile
+- [[Projects/Apollo]] — project
+- [[raw/Daily/2026-07-28]] — link to a specific day
+```
+
+Orphan topics (pages referenced but not yet created) become page creation signals.
+
 ## Frontmatter Schema
 
 ```yaml
 ---
+title: "Page Title"
 type: daily | topic | person | project | source | entity | concept | synthesis | draft | article
-tags: []
+tags: []       # Optional — use wikilinks for navigation, tags for metadata only
 status: draft | active | archived | provisional | canonical
 last_updated: YYYY-MM-DD
 ---
 ```
+
+Tags should be used sparingly and only for cross-cutting metadata
+(like `confidence: low`). Navigation is done via `[[wikilinks]]`.
 
 ## Search
 
@@ -67,6 +93,15 @@ curl -s -X POST "http://localhost:3333/api/kiwi/search/semantic" -d '{"query":"<
 
 # DQL query (structured over frontmatter)
 curl -s "http://localhost:3333/api/kiwi/query?q=TABLE+title+FROM+%22raw/People%22+WHERE+tags+CONTAINS+%22client%22"
+
+# Knowledge graph (all connections)
+curl -s "http://localhost:3333/api/kiwi/graph"
+
+# Graph analytics (PageRank, communities, orphans)
+curl -s "http://localhost:3333/api/kiwi/graph/analytics?limit=20"
+
+# Backlinks for a page
+curl -s "http://localhost:3333/api/kiwi/backlinks?path=Topics/ProjectManagement"
 ```
 
 ## Git Sync
