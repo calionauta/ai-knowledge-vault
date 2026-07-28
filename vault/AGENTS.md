@@ -2,6 +2,11 @@
 
 This vault follows the [LLM Wiki](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f)
 pattern: raw sources are compiled into a structured, interlinked wiki.
+See `purpose.md` for directional intent and `schema.md` for structural rules.
+
+Inspired by [nashsu/llm_wiki](https://github.com/nashsu/llm_wiki),
+[SamurAIGPT/llm-wiki-agent](https://github.com/SamurAIGPT/llm-wiki-agent),
+and [OpenKnowledge](https://openknowledge.ai).
 
 ## Vault Structure
 
@@ -10,39 +15,41 @@ raw/              # Source documents (immutable — never modify)
   Daily/          # ONE file per day: YYYY-MM-DD.md
                     Format:
                       # YYYY-MM-DD
-                      ## HH:MM - Title
+                      ## 09h15 - Title
                       - content with [[wikilinks]]
   Topics/         # Reference topics — [[Topics/name]] for cross-refs
   People/         # People (classified by frontmatter tags)
   Projects/       # Projects (classified by frontmatter tags)
-  Meetings/       # Meeting notes
   any/            # Any category folders
 wiki/             # Compiled knowledge (agent owns this layer)
   index.md        # Page catalog — update on every change
   log.md          # Append-only chronological record
   overview.md     # Living synthesis across sources
   sources/        # Source summaries
-  entities/       # People, companies, projects, products
-  concepts/       # Ideas, frameworks, methods
+  entities/       # People, companies, products (TitleCase.md)
+  concepts/       # Ideas, frameworks, methods (TitleCase.md)
   syntheses/      # Saved query answers
+  drafts/         # Provisional research (status: provisional)
+  curated/        # Canonical articles (status: canonical)
 ```
 
 ## Key Rules
 
 1. **Raw is immutable.** Never modify files in `raw/`. Only create new ones.
-2. **All new notes go into `raw/Daily/YYYY-MM-DD.md`** with `## HH:MM - Title`.
+2. **All notes go into `raw/Daily/YYYY-MM-DD.md`** with `## 09h15 - Title`.
 3. **Wiki pages can be overwritten** — they hold the current best understanding.
 4. **Contradictions are flagged**, never silently resolved.
 5. **Classification is by frontmatter tags**, not by folder structure.
 6. **Use `[[wikilinks]]`** to connect related pages.
+7. ** Read `schema.md` for full workflow instructions** (ingest, research, consolidate, health, lint).
 
 ## Frontmatter Schema
 
 ```yaml
 ---
-type: daily | topic | person | project | meeting | note
-tags: []       # Comma-separated labels
-status: draft | active | archived
+type: daily | topic | person | project | source | entity | concept | synthesis | draft | article
+tags: []
+status: draft | active | archived | provisional | canonical
 last_updated: YYYY-MM-DD
 ---
 ```
@@ -64,10 +71,8 @@ curl -s "http://localhost:3333/api/kiwi/query?q=TABLE+title+FROM+%22raw/People%2
 
 ## Git Sync
 
-Push changes to GitHub regularly:
-
 ```bash
 git push origin main
 ```
 
-The vault uses KiwiFS for auto-versioning. Every write is a git commit.
+KiwiFS auto-commits every write. Push periodically to GitHub.

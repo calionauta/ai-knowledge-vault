@@ -14,7 +14,6 @@ vault/
 │   ├── Topics/         # Reference topics [[Topics/name]]
 │   ├── People/         # People profiles
 │   ├── Projects/       # Project documentation
-│   ├── Meetings/       # Meeting notes
 │   └── any/            # Any additional categories
 │
 └── wiki/               # COMPILED knowledge (agent maintains)
