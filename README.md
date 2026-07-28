@@ -1,4 +1,4 @@
-# Knowledge Vault
+# AI Knowledge Vault
 
 > Your notes and project management live in separate silos — this repo bridges them.
 > [KiwiFS](https://github.com/kiwifs/kiwifs) stores and searches Markdown.
