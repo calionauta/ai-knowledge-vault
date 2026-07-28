@@ -1,9 +1,9 @@
 # Knowledge Vault
 
-> Your notes and PM live in separate silos — this repo bridges them.
+> Your notes and project management live in separate silos — this repo bridges them.
 > [KiwiFS](https://github.com/kiwifs/kiwifs) stores and searches Markdown.
 > [Mercury](https://mercuryagent.sh) (AI agent) connects Telegram, CLI, and REST
-> to notes, wiki, and tasks — with pluggable PM adapters
+> to notes, wiki, and tasks — with pluggable project management adapters
 > ([Multica](https://multica.ai), [Runfusion](https://runfusion.ai), [Kanban](https://mercuryagent.sh)).
 > Pre-built skills.
 
@@ -97,7 +97,7 @@ The result: your notes **and projects** compound across sessions instead of vani
 │    ├── Telegram/Discord/CLI interface    │
 │    ├── Notes: search, write, read        │
 │    ├── Wiki compilation (scheduled)      │
-│    └── Projects: tasks via pluggable PM  │
+│    └── Projects: tasks via pluggable project management adapters  │
 └──────────────────────────────────────────┘
 ```
 
