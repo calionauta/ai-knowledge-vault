@@ -15,6 +15,10 @@ intents:
   - what projects
   - active projects
   - create issue
+  - active adapter
+  - switch adapter
+  - which adapter
+  - change project backend
 allowed-tools:
   - exec
   - bash
@@ -159,12 +163,35 @@ No setup required. Mercury Kanban is available by default.
 
 ---
 
-## Usage
+## Adapter management
 
-When the user asks about projects, issues, or tasks:
+The config file is at `~/.mercury/project-manager-config.yaml`.
 
-1. Read the config to determine which adapter to use
-2. Run the appropriate commands for that adapter
-3. Format the results and respond
+### Check active adapter
 
-For write operations (create, update), confirm with the user before executing.
+When the user asks "qual adapter está ativo?" or "which backend am I using?":
+
+```bash
+cat ~/.mercury/project-manager-config.yaml
+```
+
+Respond with the current adapter name and the available options.
+
+### Switch adapter
+
+When the user asks "troca pra runfusion" or "switch to multigent":
+
+1. Check that the target CLI/API is available
+2. Update the config file:
+   ```bash
+   echo "adapter: <name>" > ~/.mercury/project-manager-config.yaml
+   ```
+3. Confirm the change and run a quick test command to verify
+
+### List all projects (active adapter)
+
+```bash
+# Read the config to determine which adapter to use
+CONFIG=$(cat ~/.mercury/project-manager-config.yaml)
+# Parse adapter name and run its list command
+```
