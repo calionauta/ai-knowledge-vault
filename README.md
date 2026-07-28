@@ -1,8 +1,11 @@
 # Knowledge Vault
 
-> `knowledge-vault` is an AI-augmented knowledge base where **Mercury bridges your
-> notes and project management** — all accessible via Telegram, CLI, or REST.
-> KiwiFS stores and searches everything. Mercury connects the dots.
+> Your notes and PM live in separate silos — this repo bridges them.
+> [KiwiFS](https://github.com/kiwifs/kiwifs) stores and searches Markdown.
+> [Mercury](https://mercuryagent.sh) (AI agent) connects Telegram, CLI, and REST
+> to notes, wiki, and tasks — with pluggable PM adapters
+> ([Multica](https://multica.ai), [Runfusion](https://runfusion.ai), [Kanban](https://mercuryagent.sh)).
+> Pre-built skills.
 
 [Quick Start](#quick-start) · [Why](#why) · [Architecture](#architecture) · [Local vs Server](#local-vs-server) · [KiwiFS Setup](#kiwif-configuration) · [Mercury Setup](#mercury-configuration) · [Skills](#mercury-skills--notes--projects) · [LLM Wiki](#llm-wiki-pattern) · [Project Management](#project-management) · [Vault Structure](#vault-structure) · [Troubleshooting](#troubleshooting)
 
@@ -65,6 +68,11 @@ in a completely separate silo (Jira, Trello, Notion databases) that agents can't
 - **Git** versions everything automatically
 
 The result: your notes **and projects** compound across sessions instead of vanishing in chat history. All through one Telegram bot.
+
+> **✅ Pre-built and ready to use:** This repo includes [Notes Search](./skills/notes-search/SKILL.md),
+> [Wiki Compilation](./skills/wiki-compilation/SKILL.md), and
+> [Project Management](./skills/project-manager/SKILL.md) skills — each is a `SKILL.md` file
+> that Mercury reads and runs. Copy the vault, configure Mercury, and it works.
 
 ---
 
@@ -155,6 +163,7 @@ worker_count = 2
 
 [search.vector.embedder]
 type = "onnx"
+# Model: intfloat/multilingual-e5-small (huggingface.co/intfloat/multilingual-e5-small)
 model_path = "/data/.kiwi/models/multilingual-e5-small/onnx/model.onnx"
 tokenizer_path = "/data/.kiwi/models/multilingual-e5-small/tokenizer.json"
 dimensions = 384
@@ -162,7 +171,7 @@ query_prefix = "query: "
 passage_prefix = "passage: "
 
 [search.vector.store]
-provider = "sqlite-vec"
+provider = "sqlite-vec"  # github.com/asg017/sqlite-vec
 
 [versioning]
 strategy = "git"
@@ -188,6 +197,7 @@ worker_count = 2
 
 [search.vector.embedder]
 type = "onnx"
+# Model: intfloat/multilingual-e5-small (huggingface.co/intfloat/multilingual-e5-small)
 model_path = "/data/.kiwi/models/multilingual-e5-small/onnx/model.onnx"
 tokenizer_path = "/data/.kiwi/models/multilingual-e5-small/tokenizer.json"
 dimensions = 384
@@ -195,7 +205,7 @@ query_prefix = "query: "
 passage_prefix = "passage: "
 
 [search.vector.store]
-provider = "sqlite-vec"
+provider = "sqlite-vec"  # github.com/asg017/sqlite-vec
 
 [versioning]
 strategy = "git"
@@ -305,9 +315,10 @@ CMD ["serve", "--root", "/data", "--port", "3333", "--host", "0.0.0.0"]
 ```
 
 > **⚠️ Important:** The line `ln -sf libonnxruntime.so /usr/lib/onnxruntime.so` creates
-> a symlink **without the `lib` prefix**. This is required because the Go library
-> `yalue/onnxruntime_go` calls `dlopen("onnxruntime.so")` at runtime. Without it,
-> ONNX initialization will fail with "cannot open shared object file".
+> a symlink **without the `lib` prefix**. This is required because the Go bindings
+> [`yalue/onnxruntime_go`](https://github.com/yalue/onnxruntime_go) calls
+> `dlopen("onnxruntime.so")` at runtime. Without it, ONNX initialization will fail
+> with "cannot open shared object file".
 
 Build and run:
 
