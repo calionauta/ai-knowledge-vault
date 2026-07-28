@@ -253,7 +253,7 @@ docker run -d \
 
 ### Docker (with ONNX semantic search)
 
-Build a custom image with ONNX Runtime 1.28+. The Dockerfile auto-detects your CPU architecture (x86_64 or ARM64).
+Build a custom image with [ONNX Runtime](https://github.com/microsoft/onnxruntime) 1.28+. The Dockerfile auto-detects your CPU architecture (x86_64 or ARM64).
 
 ```dockerfile
 # syntax=docker/dockerfile:1
