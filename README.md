@@ -342,7 +342,15 @@ ZENITH is optional. The primary search is via KiwiFS API on the server.
 
 ## LLM Wiki Pattern
 
+The vault follows the [LLM Wiki](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f)
+pattern: raw sources compiled into structured, interlinked wiki pages.
 
+Inspired by [nashsu/llm_wiki](https://github.com/nashsu/llm_wiki) (purpose/schema
+split, two-step ingest), [SamurAIGPT/llm-wiki-agent](https://github.com/SamurAIGPT/llm-wiki-agent)
+(health/lint boundary, post-ingest validation, graph health report), and
+[OpenKnowledge](https://openknowledge.ai) (provisional/canonical split).
+
+### Three layers
 ### Three layers
 
 ```
@@ -382,14 +390,15 @@ For an existing vault with many notes:
 
 ```
 my-vault/
+├── purpose.md              # Why the vault exists
+├── schema.md               # Structural rules
+├── AGENTS.md               # Agent instructions
 ├── raw/                    # Source documents (immutable)
 │   ├── Daily/              # Daily notes YYYY-MM-DD.md
 │   ├── Topics/             # Reference topics [[Topics/name]]
-│   ├── Notes/              # General notes (deprecated, use Daily)
-│   ├── People/             # People (classified by frontmatter tags)
-│   ├── Projects/           # Projects (classified by frontmatter tags)
-│   ├── BusinessIdeas/      # Business ideas
-│   └── ...                 # Any other categories
+│   ├── People/             # People (classified by tags)
+│   ├── Projects/           # Projects (classified by tags)
+│   └── ...                 # Any categories
 ├── wiki/                   # Agent-maintained wiki
 │   ├── index.md            # Page catalog
 │   ├── log.md              # Chronological record
@@ -397,25 +406,50 @@ my-vault/
 │   ├── sources/            # Source summaries
 │   ├── entities/           # People, companies, products
 │   ├── concepts/           # Ideas, frameworks, methods
-│   └── syntheses/          # Saved query answers
-├── AGENTS.md               # Vault rules
-├── SCHEMA.md               # Frontmatter conventions
+│   ├── syntheses/          # Saved query answers
+│   ├── drafts/             # Provisional research
+│   └── curated/            # Canonical articles
 ├── .kiwi/
 │   └── config.toml         # KiwiFS config
 └── index.md                # Vault home
 ```
+
+### Navigation: Wikilinks over tags
+
+Use `[[Topics/name]]` instead of `#tags` for all cross-references.
+Wikilinks are bidirectional, contextual, and create the knowledge graph.
+KiwiFS supports nested paths: `[[Topics/pai/filho]]`.
+
+Tags should only be used as metadata in frontmatter (e.g., `confidence: low`).
+
+### Knowledge graph
+
+KiwiFS generates a real-time knowledge graph from all `[[wikilinks]]`:
+
+```bash
+# Full graph
+curl http://localhost:3333/api/kiwi/graph
+
+# Graph analytics (PageRank, communities, orphans)
+curl http://localhost:3333/api/kiwi/graph/analytics?limit=20
+
+# Backlinks for a page
+curl http://localhost:3333/api/kiwi/backlinks?path=Topics/ProjectManagement
+```
+
+The web UI (port 3333) has an interactive graph view with Sigma.js + ForceAtlas2.
 
 ### Daily note format
 
 ```markdown
 # 2026-07-28
 
-## 09:15 - Meeting with Client
+## 09h15 - Meeting with Client
 - Discussed project timeline
 - Action items: send proposal by Friday
 - [[Topics/ProjectManagement]]
 
-## 14:30 - Research Notes
+## 14h30 - Research Notes
 - Found interesting paper on X
 - Key insight: ...
 ```
