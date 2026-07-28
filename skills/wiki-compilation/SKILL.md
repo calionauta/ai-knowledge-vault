@@ -6,7 +6,7 @@ description: >
   maintains index, overview, and log. Tracks compilation via merged-from
   frontmatter so KiwiFS memory reports show coverage.
   Follows the LLM Wiki Agent pattern.
-version: 2.0.0
+version: 3.0.0
 intents:
   - compile wiki
   - ingest notes
@@ -24,14 +24,59 @@ schedule: "0 2 * * *"
 
 # Wiki Compilation Skill
 
+## Path resolution
+
+Scripts live alongside this SKILL.md in the `references/` subdirectory.
+
+The `SKILL_DIR` variable auto-detects where scripts are, with fallbacks:
+1. Mercury-managed path: `${MERCURY_INSTALL:-$HOME/.mercury}/skills/wiki-compilation/`
+2. Git repo path (common dev setups): `$HOME/Development/ai-knowledge-vault/skills/wiki-compilation/`
+3. Current directory's parent
+
+```bash
+# Auto-detect skill directory
+if [ -d "${MERCURY_INSTALL:-$HOME/.mercury}/skills/wiki-compilation/references" ]; then
+  SKILL_DIR="${MERCURY_INSTALL:-$HOME/.mercury}/skills/wiki-compilation"
+elif [ -d "$HOME/Development/ai-knowledge-vault/skills/wiki-compilation/references" ]; then
+  SKILL_DIR="$HOME/Development/ai-knowledge-vault/skills/wiki-compilation"
+else
+  # Fallback: assume scripts are next to this SKILL.md
+  SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-.}")/.." 2>/dev/null && pwd)/wiki-compilation"
+fi
+```
+
+**Setup:** Copy the `references/` folder to the Mercury skill directory:
+```bash
+# From the repo, after cloning:
+mkdir -p ~/.mercury/skills/wiki-compilation
+cp -r skills/wiki-compilation/references ~/.mercury/skills/wiki-compilation/
+```
+
+All deterministic operations (finding files, writing pages, checking coverage,
+detecting changes, linting) are delegated to these scripts. The LLM focuses on
+what it does best: extracting meaning, structuring knowledge, and detecting
+contradictions.
+
+Scripts available in `$SKILL_DIR/references/`:
+
+| Script | Purpose | Used in |
+|--------|---------|---------|
+| `find-unmerged.sh` | List raw files needing compilation | Ingest Step 1 |
+| `write-page.sh` | Write a wiki page via KiwiFS API | Ingest Step 3 |
+| `update-meta.sh` | Rebuild index, append to log | Ingest Step 4 |
+| `check-coverage.sh` | Print memory report summary | Ingest Step 5, Coverage check |
+| `detect-changes.sh` | Find raw files with changed content | Recompile |
+| `lint.sh` | Check orphan pages, missing metadata | Lint |
+
 ## CRITICAL RULES
 
 1. NEVER modify files in `raw/`. Read only.
-2. Wiki pages can be created/updated. Source pages are append-only.
+2. Wiki pages can be created/updated. Source pages are append-only by default — updates are allowed only during explicit recompilation (detect-changes.sh found a checksum mismatch).
 3. Flag contradictions. Never silently resolve them.
-4. Update index.md on every change.
+4. Update index.md on every change via `$SKILL_DIR/references/update-meta.sh --rebuild-index`.
 5. **Every wiki page MUST include `merged-from`** in frontmatter — this is how KiwiFS tracks coverage in the memory report.
-6. **Before creating a source page, check if one already exists.** If the raw file is newer than `last_updated`, recompile.
+6. **Before creating a source page, run `find-unmerged.sh` to check if one already exists.**
+7. Every wiki page you write must ALSO be registered via `update-meta.sh --log "<entry>"`.
 
 ## Context
 
@@ -66,9 +111,8 @@ merged-from:
 
 **B) Memory report API** — shows how many raw files have been merged:
 ```bash
-curl -s "http://localhost:3333/api/kiwi/memory/report?episodes_prefix=raw/"
+bash $SKILL_DIR/references/check-coverage.sh
 ```
-Returns `coverage_pct` — target is 100%.
 
 **C) Source page existence** — if `wiki/sources/<slug>.md` exists, the raw file has been compiled at least once. But this alone doesn't update the memory report — `merged-from` is required.
 
@@ -119,69 +163,33 @@ Run daily (scheduled at 2 AM) or on demand.
 ### Step 1 — Find what needs compilation
 
 ```bash
-# Option A: Recently changed files (daily routine)
-curl -s "http://localhost:3333/api/kiwi/changes?since=24h&limit=50"
-
-# Option B: Unmerged files from memory report (for coverage tracking)
-curl -s "http://localhost:3333/api/kiwi/memory/report?episodes_prefix=raw/&limit=50"
+bash $SKILL_DIR/references/find-unmerged.sh --limit 10 --json
 ```
 
-For each file returned, determine whether to compile or skip:
-
-```bash
-# Derive slug from the raw file path
-# Example: raw/Daily/2026-07-28.md → daily-2026-07-28
-# Example: raw/Topics/ProjectManagement.md → topics-project-management
-# Rule: lowercase, replace / and spaces with -, remove extension and special chars
-SLUG=$(echo "$RAW_PATH" | sed 's|^raw/||' | sed 's|\.md$||' | tr ' /' '-' | tr '[:upper:]' '[:lower:]')
-
-SOURCE_PATH="wiki/sources/${SLUG}.md"
-
-# Read the raw file content
-RAW_CONTENT=$(curl -s "http://localhost:3333/api/kiwi/file?path=${RAW_PATH}")
-
-# Compute SHA256 checksum of raw content
-# Using sha256sum which is available in the kiwifs container
-RAW_CHECKSUM=$(printf '%s' "$RAW_CONTENT" | sha256sum | cut -d' ' -f1)
-
-# Check if a wiki source already exists
-EXISTS=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:3333/api/kiwi/file?path=${SOURCE_PATH}")
-
-if [ "$EXISTS" = "200" ]; then
-  # Read the existing source page's checksum from frontmatter
-  EXISTING_CHECKSUM=$(curl -s "http://localhost:3333/api/kiwi/file?path=${SOURCE_PATH}" | grep "source_checksum:" | sed 's/.*source_checksum: *sha256-//')
-
-  if [ "$RAW_CHECKSUM" = "$EXISTING_CHECKSUM" ] && [ -n "$EXISTING_CHECKSUM" ]; then
-    echo "ALREADY_COMPILED=true (checksum match: $RAW_CHECKSUM)"
-  else
-    echo "REQUIRES_RECOMPILE=true (old: $EXISTING_CHECKSUM, new: $RAW_CHECKSUM)"
-  fi
-else
-  echo "NEW_FILE=true (no existing source page)"
-fi
+Returns JSON lines like:
+```json
+{"path":"raw/Daily/2026-07-28.md","slug":"daily-2026-07-28","checksum":"abc123..."}
 ```
 
-> **Why SHA256 instead of timestamps?** KiwiFS stores files as content-addressed blobs — there is no git history inside the container. The file's modification time from the API is the container's internal clock, not the original write time. A content checksum is **deterministic and portable**: it catches actual edits and ignores false positives from file saves or touches.
+For each returned file, the file is **new** (no wiki source exists yet).
+
+**Why SHA256 instead of timestamps?** KiwiFS stores files as content-addressed blobs — there is no git history inside the container. A content checksum is deterministic and portable: it catches actual edits and ignores false positives from file saves or touches.
 
 ### Step 2 — Compile each file
 
-Only process files that are:
-- **New** (no wiki/sources/<slug>.md exists)
-- **Changed** (SHA256 checksum differs from stored `source_checksum`)
-
-For each file to compile:
+For each file returned by `find-unmerged.sh`:
 
 a. Read the raw note:
    ```bash
    curl -s "http://localhost:3333/api/kiwi/file?path=<raw_path>"
    ```
 
-b. LLM extracts:
-   - Summary → `wiki/sources/<slug>.md`
-   - Entities → `wiki/entities/<Name>.md` (create or update)
-   - Concepts → `wiki/concepts/<Name>.md` (create or update)
-   - Contradictions with existing wiki content
-   - Overview revision → `wiki/overview.md`
+b. LLM extracts from the content:
+   - **Summary** → `wiki/sources/<slug>.md`
+   - **Entities** → `wiki/entities/<Name>.md` (create or update)
+   - **Concepts** → `wiki/concepts/<Name>.md` (create or update)
+   - **Contradictions** with existing wiki content (read existing pages via curl first)
+   - **Overview revision** → only if the changes affect the overall synthesis
 
 c. Every wiki page written MUST include:
    ```yaml
@@ -197,47 +205,42 @@ c. Every wiki page written MUST include:
 
 ### Step 3 — Write pages
 
-All write operations MUST use the `X-Actor: agent:mercury` header:
+Use the write-page script — it handles X-Actor header and error checking:
 
 ```bash
-curl -s -X PUT "http://localhost:3333/api/kiwi/file?path=${SOURCE_PATH}" \
-  -H "X-Actor: agent:mercury" -d "<content with merged-from + source_checksum>"
+bash $SKILL_DIR/references/write-page.sh "wiki/sources/${SLUG}.md" "<full markdown content>"
+bash $SKILL_DIR/references/write-page.sh "wiki/entities/${NAME}.md" "<entity content>"
+bash $SKILL_DIR/references/write-page.sh "wiki/concepts/${NAME}.md" "<concept content>"
 ```
 
 ### Step 4 — Update index and log
 
 ```bash
-# Update index
-curl -s -X PUT "http://localhost:3333/api/kiwi/file?path=wiki/index.md" \
-  -H "X-Actor: agent:mercury" -d "<updated index>"
+# Rebuild index (reads all wiki files via API)
+bash $SKILL_DIR/references/update-meta.sh --rebuild-index
 
-# Append to log (POST /file/append is confirmed available — returns 200)
-curl -s -X POST "http://localhost:3333/api/kiwi/file/append?path=wiki/log.md" \
-  -H "X-Actor: agent:mercury" \
-  -d "## [YYYY-MM-DD] ingest | <Title> | merged-from: <raw_path> | checksum: sha256-<hash>\n"
+# Append to log
+bash $SKILL_DIR/references/update-meta.sh --log "## [YYYY-MM-DD] ingest | <Title> | merged-from: <raw_path> | checksum: sha256-<hash>\n"
 ```
 
 ### Step 5 — Check memory coverage
 
-After each batch, verify the memory report using Python (more reliable than grep for JSON/text responses):
+After each batch, verify the memory report:
 
 ```bash
-curl -s "http://localhost:3333/api/kiwi/memory/report?episodes_prefix=raw/" | python3 -c "
-import sys, json
-data = json.load(sys.stdin)
-print(f\"Coverage: {data.get('coverage_pct', '?')}%\")
-print(f\"Merged refs: {data.get('merged_from_refs', '?')}\")
-print(f\"Episodic files: {data.get('episodic_count', data.get('total_episodic', '?'))}\")
-"
+bash $SKILL_DIR/references/check-coverage.sh
 ```
 
-> **Target:** After a full first-time compilation, `coverage_pct` should approach 100%.
+Target output:
+```
+Coverage: 1%
+Merged refs: 10
+Episodic files: 3771
+```
+
+> **Target:** After each batch, `coverage_pct` should increase. After a full first-time compilation, it should approach 100%.
 > If it stays at 0%, check that `merged-from` was written correctly in the frontmatter
 > and that the memory report uses the same `episodes_prefix` (must be `raw/`).
->
-> **Note:** The API may return either JSON or formatted text depending on the KiwiFS version.
-> The Python approach works with JSON; if the response is plain text, parse field values directly
-> (e.g., `grep 'Coverage:' | grep -oP '\d+'`).
 
 ### Source page format
 
@@ -249,6 +252,7 @@ tags: []
 date: YYYY-MM-DD
 source_file: raw/...
 last_updated: YYYY-MM-DD
+source_checksum: sha256-<hash>
 merged-from:
   - type: episode
     id: raw/path/to/file.md
@@ -325,73 +329,43 @@ Definition and key idea.
 
 ## Workflow: Recompile changed notes
 
-When a raw file is edited, its content changes → the SHA256 checksum differs → the skill detects it automatically during the next ingest cycle.
-
-### Detection mechanism
-
-The recompilation check is built into Step 1 of the ingest workflow (see above).
+When a raw file is edited, its content changes → the SHA256 checksum differs → the skill detects it automatically.
 
 ```bash
-# For every wiki source file, compare stored checksum with current raw content
-for SRC_FILE in $(curl -s "http://localhost:3333/api/kiwi/tree?path=wiki/sources/" | jq -r '.[].path'); do
-  SRC_CONTENT=$(curl -s "http://localhost:3333/api/kiwi/file?path=$SRC_FILE")
-  RAW_FILE=$(echo "$SRC_CONTENT" | grep "source_file:" | sed 's/.*source_file: *//')
-  EXISTING_CHECKSUM=$(echo "$SRC_CONTENT" | grep "source_checksum:" | sed 's/.*source_checksum: *sha256-//')
-
-  # Read raw file and compute current checksum
-  RAW_CONTENT=$(curl -s "http://localhost:3333/api/kiwi/file?path=${RAW_FILE}")
-  CURRENT_CHECKSUM=$(printf '%s' "$RAW_CONTENT" | sha256sum | cut -d' ' -f1)
-
-  if [ "$CURRENT_CHECKSUM" != "$EXISTING_CHECKSUM" ]; then
-    echo "RECOMPILE: $RAW_FILE (checksum mismatch)"
-  fi
-done
+bash $SKILL_DIR/references/detect-changes.sh
 ```
 
-> **Why not timestamps?** KiwiFS does not expose file modification timestamps via its API,
-> and the underlying storage is content-addressed, not a git repository. A SHA256 checksum
-> is deterministic: the same content always produces the same hash, so false positives
-> (file touched but content unchanged) are impossible.
+Returns lines like:
+```
+CHANGED: raw/Daily/2026-07-28.md (sha256: abc123... → def456...)
+```
 
-### Recompile process
-
-For each file flagged for recompilation:
+For each changed file:
 
 1. Read the updated raw file: `curl -s "http://localhost:3333/api/kiwi/file?path=<raw_path>"`
 2. Re-extract entities, concepts, and update the summary via LLM
-3. **Update** existing wiki pages (don't create duplicates) — use `PUT` on the same path
+3. **Update** existing wiki pages (don't create duplicates) — use `write-page.sh` on the same path
 4. Update `last_updated` and `source_checksum` in frontmatter
 5. Keep the same `merged-from` entries (add new ones if the raw file spawned new entities/concepts)
 6. Update `wiki/overview.md` if the changes affect it
-7. Log the recompilation in `wiki/log.md`
-
-All writes MUST use `-H "X-Actor: agent:mercury"`:
-
-```bash
-curl -s -X PUT "http://localhost:3333/api/kiwi/file?path=wiki/sources/${SLUG}.md" \
-  -H "X-Actor: agent:mercury" -d "<updated content>"
-
-curl -s -X POST "http://localhost:3333/api/kiwi/file/append?path=wiki/log.md" \
-  -H "X-Actor: agent:mercury" \
-  -d "## [YYYY-MM-DD] recompile | <Title> | checksum: sha256-<hash>\n"
-```
+7. Log the recompilation: `bash $SKILL_DIR/references/update-meta.sh --log "## [YYYY-MM-DD] recompile | <Title> | checksum: sha256-<hash>\n"`
 
 ## Workflow: Lint
 
 Run weekly.
 
-1. Check for orphan pages, broken links, contradictions:
-   ```bash
-   curl -s "http://localhost:3333/api/kiwi/janitor"
-   ```
+```bash
+bash $SKILL_DIR/references/lint.sh
+```
 
-2. Flag stale pages (not updated in 30+ days).
+Checks performed:
+1. **Orphan sources** — source pages whose `source_file` no longer exists in raw/
+2. **Missing source_checksum** — source pages without a checksum (legacy data)
+3. **Missing merged-from** — wiki pages without `merged-from` in frontmatter
 
-3. Cross-check with memory report — files that have `merged-from` but no corresponding `wiki/sources/<slug>.md` should be flagged as broken.
+Additionally, flag stale pages (not updated in 30+ days) by checking `last_updated` dates.
 
-4. Cross-check `source_checksum` values — if a source page has a checksum but the raw file content hash differs, flag it for recompilation.
-
-5. Report findings — do not auto-fix without confirmation.
+Report findings — do not auto-fix without confirmation.
 
 ## Workflow: Query
 
@@ -400,8 +374,7 @@ When the user asks a question about the notes:
 1. Search the wiki:
    ```bash
    curl -s "http://localhost:3333/api/kiwi/search?q=<query>&limit=10"
-   curl -s -X POST "http://localhost:3333/api/kiwi/search/semantic" \
-     -d "{\"query\":\"<query>\",\"limit\":5}"
+   curl -s -X POST "http://localhost:3333/api/kiwi/search/semantic" -d "{\"query\":\"<query>\",\"limit\":5}"
    ```
 
 2. Read relevant wiki pages — note their `merged-from` to show provenance.
@@ -410,24 +383,14 @@ When the user asks a question about the notes:
 
 4. Ask user if they want the answer saved as `wiki/syntheses/<slug>.md`. All such pages MUST include `merged-from` in frontmatter.
 
-All read operations (search, file reads) don't need special headers. Only writes need `-H "X-Actor: agent:mercury"`.
+All read operations (search, file reads) don't need special headers. Only writes need `X-Actor: agent:mercury` (the write-page.sh script handles this automatically).
 
 ## Workflow: Check coverage
 
 Run this to verify compilation completeness:
 
 ```bash
-REPORT=$(curl -s "http://localhost:3333/api/kiwi/memory/report?episodes_prefix=raw/")
-echo "$REPORT" | python3 -c "
-import sys, json
-data = json.load(sys.stdin)
-print(f\"Episodic files: {data['episodic_count']}\")
-print(f\"Total unmerged: {data['total_unmerged']}\")
-print(f\"Merged refs: {data['merged_from_refs']}\")
-print(f\"Coverage: {data['coverage_pct']}%\")
-print(f\"Contradictions: {data['contradictions']}\")
-print(f\"Avg age: {data['avg_age_days']:.1f} days\")
-"
+bash $SKILL_DIR/references/check-coverage.sh
 ```
 
 **Interpreting results:**
@@ -438,25 +401,38 @@ print(f\"Avg age: {data['avg_age_days']:.1f} days\")
 | 1-99% | Partial — some files still need compilation |
 | 100% | All raw files have been merged into wiki pages |
 
-## First-time compilation
+## Batch ingestion (first-time compilation)
 
 For an existing vault with many notes (3,771+ files):
 
-1. Get the full list of unprocessed files from memory report:
+1. Run `find-unmerged.sh` in a loop, processing one batch per execution:
    ```bash
-   curl -s "http://localhost:3333/api/kiwi/memory/report?episodes_prefix=raw/&limit=3771"
+   # Each run finds the next 10 unmerged files
+   bash $SKILL_DIR/references/find-unmerged.sh --limit 10 --json
    ```
 
-2. Process in **batches of 10**. For each batch:
-   - Check which files already have `wiki/sources/<slug>.md`
-   - Compile only the new ones
-   - Add `merged-from` to every page written
+2. For each batch of 10:
+   - Process each file through Steps 2-4 (compile via LLM, write pages, update meta)
+   - Run lint after every 50 sources: `bash $SKILL_DIR/references/lint.sh`
+   - **Verify coverage** after each batch: `bash $SKILL_DIR/references/check-coverage.sh`
 
-3. Run lint after every 50 sources.
+3. Full compilation may take multiple sessions (~378 batches for 3,771 files at 10/batch).
+   Resume by re-running `find-unmerged.sh` — it automatically skips already-compiled files.
 
-4. **Verify coverage after each batch:**
-   ```bash
-   curl -s "http://localhost:3333/api/kiwi/memory/report?episodes_prefix=raw/" | grep coverage_pct
-   ```
+## Daily ingestion schedule (10 notes/day)
 
-5. Full compilation may take multiple sessions. Resume by re-running the coverage check and processing only files below the last batch.
+For ongoing maintenance, process a small batch daily:
+
+```bash
+# Run by the scheduled prompt at 2 AM
+bash $SKILL_DIR/references/find-unmerged.sh --limit 10 --json
+```
+
+Then process the results through Steps 2-4.
+
+The `find-unmerged.sh` script uses the KiwiFS memory report API to find files
+that lack a `wiki/sources/<slug>.md` page. It always picks files in the order
+returned by the API, so each run progresses through the unmerged list.
+
+Over time, as files are compiled and `merged-from` is written, the memory report's
+`coverage_pct` rises and the number of unmerged files shrinks.
