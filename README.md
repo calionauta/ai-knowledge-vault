@@ -40,7 +40,7 @@ kiwifs serve --root ./my-vault
 
 ```
 I want to set up a Knowledge Vault based on:
-https://github.com/calionauta/knowledge-vault
+https://github.com/calionauta/ai-knowledge-vault
 
 Guide me through the setup step by step.
 Start by asking me:
