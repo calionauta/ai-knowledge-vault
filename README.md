@@ -59,7 +59,7 @@ Most note systems are either **read-only for agents** (Notion, Obsidian without 
 or **write-only for humans** (raw files, no search). And project management lives
 in a completely separate silo (Jira, Trello, Notion databases) that agents can't reach.
 
-**Knowledge Vault** fixes both problems with **Mercury as the bridge**:
+**AI Knowledge Vault** fixes both problems with **Mercury as the bridge**:
 
 - **Humans** write notes in any editor + manage projects via Mercury Kanban or external tools
 - **Mercury** connects everything: reads notes, compiles the wiki, and syncs tasks — all via Telegram, CLI, or REST
