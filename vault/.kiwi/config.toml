@@ -1,0 +1,28 @@
+[workspace]
+name = "My Vault"
+template = "blank"
+
+[search]
+engine = "sqlite"
+
+[search.vector]
+enabled = true
+worker_count = 2
+
+[search.vector.embedder]
+provider = "onnx"
+model_path = "~/.kiwi/models/multilingual-e5-small/onnx/model.onnx"
+dimensions = 384
+query_prefix = "query: "
+passage_prefix = "passage: "
+
+[search.vector.store]
+provider = "sqlite-vec"
+
+[versioning]
+strategy = "git"
+
+[janitor]
+stale_days = 90
+check_orphans = true
+check_broken_links = true
