@@ -48,7 +48,8 @@ Start by asking me:
 2. Do you need project management? (Mercury Kanban / Multica / Runfusion)
 3. Do I have an existing notes repository on GitHub?
 4. What LLM provider do you use? (API key needed)
-5. Telegram bot token? (optional)
+5. Single user or team? (team = parallel agents via draft spaces)
+6. Telegram bot token? (optional)
 ```
 
 ---
@@ -123,6 +124,7 @@ The setup assistant (human or LLM) will ask:
 | Timezone | Auto-detected from IP, confirm or override |
 | Daily note format | Default: `YYYY-MM-DD.md` |
 | Git auto-push? | Yes (every 30 min via Mercury schedule) |
+| Single user or team? | `single` (simpler) or `team` (enables draft spaces for parallel agents) |
 
 ### If you choose "local only"
 
@@ -493,7 +495,7 @@ Pluggable backend that lets Mercury manage **tasks and projects** through the sa
 |---------|---------|--------|--------|
 | `mercury-native` | Mercury Kanban | Built-in | ✅ No setup needed |
 | `multica` | [multica.ai](https://multica.ai) | CLI (`multica`) | ✅ Tested (production) |
-| `runfusion` | [runfusion.ai](https://runfusion.ai) | CLI (`fn`) | ⚠️ Template (needs validation) |
+| `runfusion` | [runfusion.ai](https://runfusion.ai) | CLI (`fn`) | ✅ Tested (production) |
 | `multigent` | [multigent](https://github.com/multigent/multigent) | CLI (`multigent`) | ⚠️ Template (needs validation) |
 
 ```yaml
