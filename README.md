@@ -225,6 +225,28 @@ check_broken_links = true
 > as episodic memory. Use `curl http://localhost:3333/api/kiwi/memory/report`
 > to see which notes haven't been compiled into wiki pages yet.
 
+### Draft spaces (team mode)
+
+When the setup asks "Single user or team?", selecting `team` enables draft
+spaces — isolated Git branches so parallel agents can write without conflicts.
+
+Add to `config.toml`:
+
+```toml
+[drafts]
+enabled = true
+max_active = 10          # Max concurrent drafts
+auto_discard = "720h"    # Auto-discard stale drafts after 30 days
+```
+
+No special build is needed — draft support is built into the standard KiwiFS
+binary. Once enabled, agents use the `kiwi_draft_*` API (create, read, write,
+diff, merge, discard) instead of writing directly to the main tree.
+
+For single-user setups, drafts add unnecessary complexity and can be left
+disabled. The `raw/` (immutable) + `wiki/` (consolidated) pattern already
+provides draft-like separation without Git branches.
+
 ### Symlink playbook → AGENTS.md
 
 For MCP-capable agents (Claude Desktop, Cursor), KiwiFS exposes a playbook
