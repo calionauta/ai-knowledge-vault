@@ -28,17 +28,19 @@ allowed-tools:
 3. Timezone: configure TZ environment variable per user location.
 4. Use curl for KiwiFS API, never shell filesystem commands.
 
-## Daily note format (MANDATORY)
+## Time format in headings
+
+Use `HH:MM` format for time headings: `## 09:15 - Title`.
+
+If the markdown viewer has issues with colons in headings (some parsers
+render `## 13:30` incorrectly), use `13h30` as alternative:
 
 ```
-# YYYY-MM-DD
-
-## HH:MM - Short Title
-- Content point 1
-- Content point 2
+## 09h15 - Meeting with Client
+## 14h30 - Research Notes
 ```
 
-Applies to ALL note types: ideas, references, tasks, todos.
+The `HHhMM` format is standard in Brazil and avoids parser issues.
 
 ## How to save a note
 
