@@ -105,6 +105,8 @@ FUSION_API="http://127.0.0.1:4040"  # Local server
 
 ### Commands (CLI)
 
+First find `fn` — try `which fn`, then common install paths.
+
 List all registered projects:
 ```bash
 fn project list
