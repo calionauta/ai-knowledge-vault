@@ -86,26 +86,45 @@ multica agent tasks <agent_id> --output json
 
 ## Adapter: runfusion (Fusion)
 
-Requires: `fn` CLI installed. Install: `npm install -g @runfusion/fusion` or `brew install runfusion/fusion/fusion`.
+Requires: Fusion dashboard running on port 4040 (or configured).
+Uses the REST API directly (more reliable than CLI for web-created data).
 
-### Commands
+### Configuration
+
+Set the Fusion API base URL:
+
+```bash
+FUSION_API="http://127.0.0.1:4040"  # Local server
+```
+
+### Commands (REST API)
 
 List projects:
 ```bash
-fn project list
+curl -s "$FUSION_API/api/projects" | python3 -m json.tool
 ```
 
-Create task:
+List tasks:
+```bash
+curl -s "$FUSION_API/api/tasks" | python3 -m json.tool
+```
+
+List tasks for a project:
+```bash
+curl -s "$FUSION_API/api/tasks?projectId=<project-id>"
+```
+
+Create task (via CLI — more reliable for creation):
 ```bash
 fn task create "Task title"
 fn task create "Task title" --project <project-name>
 ```
 
-List tasks:
-```bash
-fn task list
-fn task list --project <project-name>
-```
+### Setup
+
+1. Install: `npm install -g @runfusion/fusion`
+2. Start dashboard: `fn dashboard --port 4040 --host 0.0.0.0 --no-auth`
+3. The API is now available at http://127.0.0.1:4040
 
 Show task:
 ```bash
