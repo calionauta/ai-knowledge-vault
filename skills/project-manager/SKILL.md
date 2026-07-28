@@ -118,22 +118,24 @@ fn task show <task-id>
 
 ## Adapter: multigent
 
-Requires: `multigent` CLI installed.
+Requires: `multigent` CLI installed. Build from https://github.com/multigent/multigent.
 
-> **Note:** multigent adapter commands are a template. The exact CLI may vary
-> by version. Adjust commands based on your installed version's help output.
-
-### Typical commands
+### Commands
 
 ```bash
 multigent project list
+multigent project show <id>
 multigent task list --project <id>
-multigent task create --project <id> --title "..."
+multigent task show <id>
+multigent agent list
+multigent list --help      # Generic list command
+multigent create           # Create resources
+multigent run              # Execute tasks
 ```
 
 ### Setup
 
-Follow the official multigent install guide for your platform.
+Build from source or download a release from the multigent repository.
 
 ---
 

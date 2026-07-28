@@ -307,12 +307,12 @@ Follows the [LLM Wiki Agent](https://github.com/SamurAIGPT/llm-wiki-agent) patte
 
 Pluggable backend for project management. Supports multiple adapters:
 
-| Adapter | Backend | Access | Setup |
-|---------|---------|--------|-------|
-| `multica` | [multica.ai](https://multica.ai) | CLI (`multica`) | `pip install multica` or binary |
-| `runfusion` | [runfusion.ai](https://runfusion.ai) | REST API | API key |
-| `multigent` | [multigent](https://github.com/multigent/multigent) | API/CLI | `pip install multigent` |
-| `mercury-native` | Mercury Kanban | Native | Built-in, no setup |
+| Adapter | Backend | Access | Status |
+|---------|---------|--------|--------|
+| `multica` | [multica.ai](https://multica.ai) | CLI (`multica`) | ✅ Tested (production) |
+| `runfusion` | [runfusion.ai](https://runfusion.ai) | CLI (`fn`) | ⚠️ Template (needs validation) |
+| `multigent` | [multigent](https://github.com/multigent/multigent) | CLI (`multigent`) | ⚠️ Template (needs validation) |
+| `mercury-native` | Mercury Kanban | Native | ✅ Built-in (no setup) |
 
 To use, set the adapter in your config:
 
@@ -323,10 +323,25 @@ adapter: multica  # or runfusion, multigent, mercury-native
 
 ---
 
+## Local Search (ZENITH)
+
+For offline search when the server is unreachable, you can use
+[ZENITH](https://github.com/shramanb113/ZENITH) — a hybrid search engine
+(lexical + fuzzy + semantic) that runs locally with an embedded ONNX model.
+No API key needed.
+
+```bash
+go install github.com/shramanb113/ZENITH@latest
+zenith index ./my-vault/raw
+zenith search --embedder auto "query here"
+```
+
+ZENITH is optional. The primary search is via KiwiFS API on the server.
+
+---
+
 ## LLM Wiki Pattern
 
-The vault follows the [LLM Wiki](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f)
-pattern: raw sources are compiled into structured, interlinked wiki pages.
 
 ### Three layers
 
