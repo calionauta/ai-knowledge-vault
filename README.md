@@ -4,7 +4,49 @@
 > notes and project management** — all accessible via Telegram, CLI, or REST.
 > KiwiFS stores and searches everything. Mercury connects the dots.
 
-[Why](#why) · [Architecture](#architecture) · [Quick Start](#quick-start) · [Local vs Server](#local-vs-server) · [KiwiFS Setup](#kiwif-configuration) · [Mercury Setup](#mercury-configuration) · [Skills](#mercury-skills--notes--projects) · [LLM Wiki](#llm-wiki-pattern) · [Project Management](#project-management) · [Vault Structure](#vault-structure) · [Troubleshooting](#troubleshooting)
+[Quick Start](#quick-start) · [Why](#why) · [Architecture](#architecture) · [Local vs Server](#local-vs-server) · [KiwiFS Setup](#kiwif-configuration) · [Mercury Setup](#mercury-configuration) · [Skills](#mercury-skills--notes--projects) · [LLM Wiki](#llm-wiki-pattern) · [Project Management](#project-management) · [Vault Structure](#vault-structure) · [Troubleshooting](#troubleshooting)
+
+---
+
+## Quick Start
+
+Choose your path:
+
+### 👤 For humans
+
+```bash
+# 1. Install KiwiFS
+curl -fsSL https://raw.githubusercontent.com/kiwifs/kiwifs/main/install.sh | sh
+
+# 2. Initialize vault
+kiwifs init --template blank --root ./my-vault
+
+# 3. Set up the structure (copy from this repo)
+cp -r vault/* ./my-vault/
+
+# 4. Start KiwiFS
+kiwifs serve --root ./my-vault
+
+# Open http://localhost:3333
+```
+
+### 🤖 For LLM agents
+
+> Give this repository URL to Claude Code, Codex, Mercury, or any agent
+> that reads markdown. The agent will ask you questions and set everything up.
+
+```
+I want to set up a Knowledge Vault based on:
+https://github.com/calionauta/knowledge-vault
+
+Guide me through the setup step by step.
+Start by asking me:
+1. Local only or server + local?
+2. Do you need project management? (Mercury Kanban / Multica / Runfusion)
+3. Do I have an existing notes repository on GitHub?
+4. What LLM provider do you use? (API key needed)
+5. Telegram bot token? (optional)
+```
 
 ---
 
@@ -57,48 +99,6 @@ The result: your notes **and projects** compound across sessions instead of vani
 |------|-------------|-------------|
 | **Local only** | Single machine, always on | KiwiFS binary + Mercury running locally |
 | **Server + local** | Access from anywhere, 24/7 | VPS (2GB RAM minimum), Tailscale or Cloudflare |
-
----
-
-## Quick Start
-
-Choose your path:
-
-### 👤 For humans
-
-```bash
-# 1. Install KiwiFS
-curl -fsSL https://raw.githubusercontent.com/kiwifs/kiwifs/main/install.sh | sh
-
-# 2. Initialize vault
-kiwifs init --template blank --root ./my-vault
-
-# 3. Set up the structure (copy from this repo)
-cp -r vault/* ./my-vault/
-
-# 4. Start KiwiFS
-kiwifs serve --root ./my-vault
-
-# Open http://localhost:3333
-```
-
-### 🤖 For LLM agents
-
-> Give this repository URL to Claude Code, Codex, Mercury, or any agent
-> that reads markdown. The agent will ask you questions and set everything up.
-
-```
-I want to set up a Knowledge Vault based on:
-https://github.com/calionauta/knowledge-vault
-
-Guide me through the setup step by step.
-Start by asking me:
-1. Local only or server + local?
-2. Do you need project management? (Mercury Kanban / Multica / Runfusion)
-3. Do I have an existing notes repository on GitHub?
-4. What LLM provider do you use? (API key needed)
-5. Telegram bot token? (optional)
-```
 
 ---
 
