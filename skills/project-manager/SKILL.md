@@ -97,27 +97,28 @@ Set the Fusion API base URL:
 FUSION_API="http://127.0.0.1:4040"  # Local server
 ```
 
-### Commands (REST API)
+### Commands (CLI)
 
-List projects:
+List all registered projects:
 ```bash
-curl -s "$FUSION_API/api/projects" | python3 -m json.tool
+fn project list
 ```
 
-List tasks:
+List tasks for a specific project (REQUIRED — Fusion needs --project):
 ```bash
-curl -s "$FUSION_API/api/tasks" | python3 -m json.tool
+fn task list --project <project-name>
+fn task list --project stelow --json
 ```
 
-List tasks for a project:
-```bash
-curl -s "$FUSION_API/api/tasks?projectId=<project-id>"
-```
-
-Create task (via CLI — more reliable for creation):
+Create task:
 ```bash
 fn task create "Task title"
 fn task create "Task title" --project <project-name>
+```
+
+Show task details:
+```bash
+fn task show <task-id>
 ```
 
 ### Setup
