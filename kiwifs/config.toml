@@ -9,8 +9,20 @@ root = "/data"
 engine = "sqlite"
 
 [search.vector]
-enabled = false
-# See vault/.kiwi/config.toml for vector search setup options
+enabled = true
+worker_count = 2
+
+[search.vector.embedder]
+type = "onnx"
+model_path = "/data/.kiwi/models/multilingual-e5-small/onnx/model.onnx"
+tokenizer_path = "/data/.kiwi/models/multilingual-e5-small/tokenizer.json"
+dimensions = 384
+query_prefix = "query: "
+passage_prefix = "passage: "
+
+[search.vector.store]
+provider = "sqlite-vec"
+
 [versioning]
 strategy = "git"
 
