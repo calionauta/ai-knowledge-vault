@@ -44,7 +44,13 @@ All notes use `raw/Daily/YYYY-MM-DD.md` with this structure:
 Time format: `HHhMM` (Brazilian standard, used in Portugal and France too).
 No colons in headings — avoids parser bugs. Examples: `09h15`, `14h30`.
 
-## How to save a note
+The `# YYYY-MM-DD` title line is only needed once per file (added automatically
+when creating a new daily). Appends just add `## HHhMM` sections.
+
+## How to save a note (CRITICAL: real newlines, not literal \n)
+
+Use `printf` with `--data-binary` (NOT `-d`). The `-d` flag converts `\n` to
+literal text, not actual line breaks.
 
 ```bash
 DATE=$(TZ=$TIMEZONE date +%Y-%m-%d)
@@ -52,75 +58,52 @@ TIME=$(TZ=$TIMEZONE date +%Hh%M)
 TITLE="Title derived from content"
 FILE="raw/Daily/${DATE}.md"
 
-CONTENT=$(printf "# %s\n\n## %s - %s\n- %s\n" "$DATE" "$TIME" "$TITLE" "content")
 EXISTS=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:3333/api/kiwi/file?path=${FILE}")
 
 if [ "$EXISTS" = "200" ]; then
-  CONTENT=$(printf "\n## %s - %s\n- %s\n" "$TIME" "$TITLE" "content")
   curl -s -X POST "http://localhost:3333/api/kiwi/file/append?path=${FILE}" \
-    -H "X-Actor: agent:mercury" --data-binary "$CONTENT"
+    -H "X-Actor: agent:mercury" \
+    --data-binary "$(printf "\n## %s - %s\n- %s\n" "$TIME" "$TITLE" "content")"
 else
   curl -s -X PUT "http://localhost:3333/api/kiwi/file?path=${FILE}" \
-    -H "X-Actor: agent:mercury" --data-binary "$CONTENT"
+    -H "X-Actor: agent:mercury" \
+    --data-binary "$(printf "# %s\n\n## %s - %s\n- %s\n" "$DATE" "$TIME" "$TITLE" "content")"
 fi
 ```
 
-Use `--data-binary` NOT `-d` to preserve newlines.
-
 ## Save from URL (Link → Daily Note)
 
-When the user sends a URL to be saved as a note:
+When the user sends a URL to be saved:
 
-1. Use `fetch_url` to get the page content (automaticamente extrai title + meta description + headings)
-2. Extract the **page title**, **meta description**, and **H1/H2 headings** from the fetched content
-3. Save na Daily Note do dia com o formato:
+1. Use `fetch_url` to get the page content
+2. Extract the **page title** and **meta description**
+3. Save in the daily note with this format:
 
 ```
-## 14h30 - [Page Title](url): https://exemplo.com
-    Meta description / about da página
-    H1: Primeiro heading da página
-    H2: Segundo heading da página
+## 14h30 - [Page Title](url)
+    Description / summary of the page
 ```
 
-- **Title** vira um link markdown apontando pra URL original
-- **Dois pontos** e a **URL crua** logo após
-- **Descrição** indentada (4 espaços) na linha abaixo
-- **H1** e **H2** indentados abaixo da descrição (se conseguir extrair)
-
-Fluxo completo:
+**Do NOT** add H1/H2 headings from the page. Just title + description.
 
 ```bash
-# 1. Agent usa fetch_url (ferramenta nativa) pra buscar a página
-#    fetch_url retorna texto limpo — contém title, meta description e headings
-#    O agent extrai:
-#    - title: primeira linha (# Título)
-#    - description: meta description ou primeiro parágrafo relevante
-#    - h1/h2: linhas "# " e "## " no conteúdo
-# 2. Salva na Daily Note com o fluxo padrão:
-
 DATE=$(TZ=$TIMEZONE date +%Y-%m-%d)
 TIME=$(TZ=$TIMEZONE date +%Hh%M)
 FILE="raw/Daily/${DATE}.md"
 
-# Monta entrada com título linkado + URL + meta + headings
-ENTRY=$(printf "\n## %s - [%s](%s): %s\n    %s\n    H1: %s\n    H2: %s\n" \
-  "$TIME" "$TITLE" "$URL" "$URL" "$DESCRIPTION" "$H1" "$H2")
+# Build the entry with real newlines via printf
+ENTRY="$(printf "\n## %s - [%s](%s)\n    %s\n" "$TIME" "$TITLE" "$URL" "$DESCRIPTION")"
+TITLE_AND_DATE="$(printf "# %s\n\n## %s - [%s](%s)\n    %s\n" "$DATE" "$TIME" "$TITLE" "$URL" "$DESCRIPTION")"
 
 EXISTS=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:3333/api/kiwi/file?path=${FILE}")
 if [ "$EXISTS" = "200" ]; then
   curl -s -X POST "http://localhost:3333/api/kiwi/file/append?path=${FILE}" \
     -H "X-Actor: agent:mercury" --data-binary "$ENTRY"
 else
-  ENTRY=$(printf "# %s\n\n## %s - [%s](%s): %s\n    %s\n    H1: %s\n    H2: %s\n" \
-    "$DATE" "$TIME" "$TITLE" "$URL" "$URL" "$DESCRIPTION" "$H1" "$H2")
   curl -s -X PUT "http://localhost:3333/api/kiwi/file?path=${FILE}" \
-    -H "X-Actor: agent:mercury" --data-binary "$ENTRY"
+    -H "X-Actor: agent:mercury" --data-binary "$TITLE_AND_DATE"
 fi
 ```
-
-O agent (mercury) usa a ferramenta nativa `fetch_url` — não precisa de script externo.
-Se houver mais de um H1 ou H2, lista apenas o primeiro de cada (H1 principal e H2 principal).
-Se não conseguir extrair algum campo, pula a linha correspondente.
 
 ## Search
 
