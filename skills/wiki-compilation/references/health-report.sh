@@ -242,7 +242,7 @@ if broken:
     if len(broken) > 10:
         print("   ... and {} more".format(len(broken) - 10))
     print("   💡 Either create the missing pages or remove the links.")
-    print("      Common candidates: names that should be entities, daily")
+    print("      Common candidates: names that should be entities")
 
 comps = g("components")
 if comps > 1:
