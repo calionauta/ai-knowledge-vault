@@ -45,7 +45,7 @@ https://github.com/calionauta/ai-knowledge-vault
 Guide me through the setup step by step.
 Start by asking me:
 1. Local only or server + local?
-2. Do you need project management? (Mercury Kanban / Multica / Runfusion)
+2. Do you need project management? (Mercury Kanban / Multica / Runfusion / Multigent)
 3. Do I have an existing notes repository on GitHub?
 4. What LLM provider do you use? (API key needed)
 5. Single user or team? (team = parallel agents via draft spaces)
@@ -429,6 +429,35 @@ See [KiwiFS vector search docs](https://docs.kiwifs.com/configuration#vector-sea
 Mercury is the **AI bridge** between your notes, your projects, and your messaging apps.
 It connects Telegram to both KiwiFS (notes/wiki) and your project management backend.
 
+### Telegram Bot Setup
+
+Before configuring Mercury, you need a Telegram bot token. Here's how to get one:
+
+1. Open Telegram and search for [@BotFather](https://t.me/botfather)
+2. Send `/newbot` and follow the prompts
+3. Choose a **display name** (e.g. `My Vault Bot`)
+4. Choose a **username** that must end in `bot` (e.g. `my_vault_bot`)
+5. BotFather will reply with a **token** — it looks like:
+   ```
+   1234567890:ABCdefGHIjklmNOPqrstUVwxyz-1234567
+   ```
+   Copy it — you'll only see it once.
+
+Save the token as an environment variable:
+
+```bash
+export TELEGRAM_TOKEN="1234567890:ABCdefGHIjklmNOPqrstUVwxyz-1234567"
+```
+
+Or store it in a secrets file:
+
+```bash
+echo "TELEGRAM_TOKEN=1234567890:ABCdefGHIjklmNOPqrstUVwxyz-1234567" >> ~/.secrets/mercury.env
+chmod 600 ~/.secrets/mercury.env
+```
+
+> **Security note:** Never commit your bot token to Git. Always use environment variables or `.secrets/` files.
+
 ### Template config (`mercury/mercury.yaml`)
 
 ```yaml
@@ -462,7 +491,7 @@ skills:
 
 ### Setup flow
 
-1. Copy the template and set your API key and Telegram token
+1. Copy the template and set your API key and Telegram token (see [Telegram Bot Setup](#telegram-bot-setup) above)
 2. Run `mercury setup` to complete onboarding (Telegram pairing)
 3. Approve your Telegram user: `mercury telegram approve <CODE>`
 
