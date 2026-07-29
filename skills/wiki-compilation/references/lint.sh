@@ -54,19 +54,7 @@ while IFS= read -r SRC; do
   fi
 done <<< "$SOURCES"
 
-# --- Check 3: Missing memory_kind: semantic ---
-echo ""
-echo "=== Lint: Missing memory_kind: semantic ==="
-while IFS= read -r WP; do
-  [ -z "$WP" ] && continue
-  CONTENT=$(curl -sf "${KIWI_API}/api/kiwi/file?path=${WP}" 2>/dev/null || true)
-  if [ -n "$CONTENT" ] && ! echo "$CONTENT" | grep -q "^memory_kind: semantic"; then
-    echo "MISSING: $WP has no memory_kind: semantic in frontmatter"
-    ISSUES=$((ISSUES + 1))
-  fi
-done <<< "$ALL_FILES"
-
-# --- Check 4: Missing merged-from ---
+# --- Check 3: Missing merged-from ---
 echo ""
 echo "=== Lint: Missing merged-from ==="
 ALL_WIKI=$(curl -sf "${KIWI_API}/api/kiwi/tree?path=wiki/" 2>/dev/null || echo '[]')

@@ -13,7 +13,7 @@ JSON=false
 [[ "${1:-}" == "--json" ]] && JSON=true
 
 # Count raw files (exclude trash, hidden, and temp files)
-RAW_FILES=$(curl -sf "${KIWI_API}/api/kiwi/tree?path=raw/" 2>/dev/null || echo '{"results":[]}')
+RAW_FILES=$(curl -sf "${KIWI_API}/api/kiwi/tree?path=raw/&limit=5000" 2>/dev/null || echo '{"results":[]}')
 RAW_COUNT=$(echo "$RAW_FILES" | python3 -c "
 import sys, json
 try:
@@ -29,8 +29,8 @@ try:
 except: print(0)
 " 2>/dev/null)
 
-# Count wiki source files
-WIKI_FILES=$(curl -sf "${KIWI_API}/api/kiwi/tree?path=wiki/sources/" 2>/dev/null || echo '{"results":[]}')
+# Count wiki source files (high limit to avoid pagination)
+WIKI_FILES=$(curl -sf "${KIWI_API}/api/kiwi/tree?path=wiki/sources/&limit=5000" 2>/dev/null || echo '{"results":[]}')
 WIKI_COUNT=$(echo "$WIKI_FILES" | python3 -c "
 import sys, json
 try:
