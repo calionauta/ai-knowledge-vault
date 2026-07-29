@@ -63,7 +63,8 @@ Scripts available in `$SKILL_DIR/references/`:
 | `find-unmerged.sh` | List raw files needing compilation | Ingest Step 1 |
 | `write-page.sh` | Write a wiki page via KiwiFS API | Ingest Step 3 |
 | `update-meta.sh` | Rebuild index, append to log | Ingest Step 4 |
-| `check-coverage.sh` | Print memory report summary | Ingest Step 5, Coverage check |
+| `check-coverage.sh` | Print KiwiFS memory report | Ingest Step 5 |
+| `coverage-report.sh` | Portable coverage (no frontmatter needed) | Check coverage |
 | `detect-changes.sh` | Find raw files with changed content | Recompile |
 | `lint.sh` | Check orphan pages, missing metadata | Lint |
 
@@ -73,7 +74,7 @@ Scripts available in `$SKILL_DIR/references/`:
 2. Wiki pages can be created/updated. Source pages are append-only by default — updates are allowed only during explicit recompilation (detect-changes.sh found a checksum mismatch).
 3. Flag contradictions. Never silently resolve them.
 4. Update index.md on every change via `$SKILL_DIR/references/update-meta.sh --rebuild-index`.
-5. **Every wiki page MUST include `memory_kind: semantic` and `merged-from`** in frontmatter — both are required for KiwiFS memory report tracking.
+5. **Every wiki page MUST include `merged-from`** in frontmatter — this records which raw files were used, enabling provenance tracking.
 6. **Before creating a source page, run `find-unmerged.sh` to check if one already exists.**
 7. Every wiki page you write must ALSO be registered via `update-meta.sh --log "<entry>"`.
 
@@ -99,46 +100,32 @@ wiki/
 
 ### How compilation tracking works
 
-KiwiFS provides a memory report that tracks which raw files have been
-"consumed" by downstream pages. The tracking uses three frontmatter fields:
+Wiki pages track which raw files they came from via two mechanisms:
 
-**A) `memory_kind: episodic`** — must be set on raw files so KiwiFS recognizes them as episodes.
-The `episode_id` field gives each raw file a unique identifier.
+**A) `source_file` + slug** — each source page has `source_file: raw/...` in frontmatter.
+This is how we know which raw produced which wiki page.
 
-**B) `memory_kind: semantic`** — must be set on wiki pages that consume episodes.
-The `merged-from` field in these pages references the `episode_id` of each raw file used.
-
-**C) `derived-from`** — set automatically by KiwiFS from the `X-Provenance` header.
-Records which agent run produced the file. Not required for memory tracking.
-
-| Field | Set by | Purpose |
-|-------|--------|---------|
-| `memory_kind` | You | Classifies file as `episodic` or `semantic` |
-| `episode_id` | You | Unique ID for the raw file |
-| `derived-from` | KiwiFS (auto) | Which run produced this file |
-| `merged-from` | You (consolidation job) | Which episodes were folded into this downstream page |
-
-**The matching logic:** KiwiFS looks at all `merged-from` entries across all files
-with `memory_kind: semantic`. Each entry's `id` is matched against the `episode_id`
-(or fallback `id`) of files with `memory_kind: episodic`. If they match, the episode
-is "covered" and counted in `merged_from_refs`.
-
-**D) Memory report API** — shows how many raw files have been merged:
+**B) `merged-from`** — records the raw file path (or slug) for provenance tracking.
+KiwiFS natively supports `merged-from` for its memory report, but we also provide
+a **portable coverage report** that doesn't depend on any KiwiFS frontmatter:
 ```bash
-bash $SKILL_DIR/references/check-coverage.sh
+bash $SKILL_DIR/references/coverage-report.sh
 ```
+This counts raw `.md` files vs `wiki/sources/` entries to show real coverage.
 
-**E) Source page existence** — if `wiki/sources/<slug>.md` exists, the raw file has been compiled at least once.
-But this alone doesn't update the memory report — `merged-from` + correct `memory_kind` on the wiki page is required.
+**C) `derived-from`** — automatically set by KiwiFS from the `X-Provenance` header.
+Records which agent run produced the file.
+
+**Note:** Raw files do NOT need `memory_kind: episodic` or `episode_id`.
+The coverage-report.sh works by simple file counting, not KiwiFS-specific frontmatter.
 
 ### Page frontmatter
 
-**Source page** — stores `memory_kind: semantic` and the SHA256 checksum for change detection:
+**Source page** — stores the SHA256 checksum for change detection:
 ```yaml
 ---
 title: "Source Title"
 type: source
-memory_kind: semantic
 tags: []
 date: YYYY-MM-DD
 source_file: raw/...
@@ -146,7 +133,7 @@ last_updated: YYYY-MM-DD
 source_checksum: sha256-abc123...
 merged-from:
   - type: episode
-    id: <episode_id_of_raw_file>
+    id: <slug>
 ---
 ```
 
@@ -155,20 +142,17 @@ merged-from:
 ---
 title: "Page Name"
 type: entity | concept | synthesis
-memory_kind: semantic
 tags: []
 sources: [source-slug]
 last_updated: YYYY-MM-DD
 merged-from:
   - type: episode
-    id: <episode_id_of_raw_file>
+    id: <slug>
 ---
 ```
 
-> `merged-from` lists one or more raw files that were used to create/update this page.
-> The `id` in `merged-from` must match the `episode_id` of the raw file.
-> KiwiFS reads `merged-from` + `memory_kind: semantic` to calculate `coverage_pct` in the memory report.
->
+> `merged-from` lists which raw files were used to create this page.
+> The `id` should match the raw file's slug (e.g., `daily-2026-07-28`).
 > `source_checksum` is the SHA256 hash of the raw file content at compile time.
 > On subsequent runs, the skill re-hashes and compares — if different, the note was edited and needs recompilation.
 > This is more reliable than timestamps because it detects actual content changes, not file saves or touches.
@@ -208,22 +192,16 @@ b. LLM extracts from the content:
    - **Contradictions** with existing wiki content (read existing pages via curl first)
    - **Overview revision** → only if the changes affect the overall synthesis
 
-c. Every wiki page MUST have:
-   - `memory_kind: semantic` in frontmatter
-   - `merged-from` with `id` matching the raw file's `episode_id`
-
-   Source pages MUST also include:
-   ```yaml
-   source_checksum: sha256-<hash_of_raw_content>
-   ```
-
-   The `id` in `merged-from` should match the `episode_id` of the raw file.
-   Currently, raw files may not have `episode_id` set. In that case, derive one
-   from the slug: the slug IS the `episode_id` for that raw file.
+c. Every wiki page MUST include `merged-from` with the raw file's slug:
    ```yaml
    merged-from:
      - type: episode
        id: <slug>  # e.g., "daily-2026-07-28"
+   ```
+
+   Source pages MUST also include:
+   ```yaml
+   source_checksum: sha256-<hash_of_raw_content>
    ```
 
 ### Step 3 — Write pages
@@ -267,13 +245,10 @@ Episodic files: 3771
 
 ### Source page format
 
-Note: `memory_kind: semantic` is REQUIRED for KiwiFS memory tracking.
-
 ```markdown
 ---
 title: "Source Title"
 type: source
-memory_kind: semantic
 tags: []
 date: YYYY-MM-DD
 source_file: raw/...
@@ -308,7 +283,6 @@ merged-from:
 ---
 title: "Entity Name"
 type: entity
-memory_kind: semantic
 tags: []
 sources: [slug1]
 last_updated: YYYY-MM-DD
@@ -334,7 +308,6 @@ How this entity appears across sources.
 ---
 title: "Concept Name"
 type: concept
-memory_kind: semantic
 tags: []
 sources: [slug1]
 last_updated: YYYY-MM-DD
@@ -415,19 +388,26 @@ All read operations (search, file reads) don't need special headers. Only writes
 
 ## Workflow: Check coverage
 
-Run this to verify compilation completeness:
+Run this to verify compilation completeness.
 
+**Portable coverage (recommended):** counts raw files vs wiki sources —
+works without any KiwiFS-specific frontmatter:
+```bash
+bash $SKILL_DIR/references/coverage-report.sh
+```
+
+**KiwiFS memory report** (requires `merged-from` on wiki pages):
 ```bash
 bash $SKILL_DIR/references/check-coverage.sh
 ```
 
-**Interpreting results:**
+**Interpreting coverage-report.sh output:**
 
 | Coverage | Meaning |
 |----------|---------|
-| 0% | No `merged-from` entries found in wiki pages |
+| 0% | No `wiki/sources/` pages exist |
 | 1-99% | Partial — some files still need compilation |
-| 100% | All raw files have been merged into wiki pages |
+| 100% | All raw files have corresponding wiki sources |
 
 ## Batch ingestion (first-time compilation)
 

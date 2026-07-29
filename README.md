@@ -560,16 +560,19 @@ split, two-step ingest), [SamurAIGPT/llm-wiki-agent](https://github.com/SamurAIG
 [KiwiFS](https://docs.kiwifs.com/concepts/episodic-memory) (episodic memory model,
 merged-from tracking, memory report analytics).
 
-#### Memory tracking with KiwiFS
+#### Coverage tracking
 
-The vault uses KiwiFS's [episodic memory model](https://docs.kiwifs.com/concepts/episodic-memory)
-to track which raw notes have been compiled into the wiki:
+The vault tracks compilation progress using the `coverage-report.sh` script,
+which simply counts raw files vs wiki source files:
 
-- **Raw files** (`raw/`) get `memory_kind: episodic` + `episode_id` in frontmatter
-- **Wiki pages** (`wiki/`) get `memory_kind: semantic` + `merged-from` referencing the `episode_id`
-- The **memory report** (`GET /api/kiwi/memory/report`) shows `coverage_pct` — what % of raw files have been merged
-- `derived-from` is set automatically by KiwiFS from the `X-Provenance` header (records which agent run produced the file)
-- `merged-from` is set by the wiki compilation skill (records which episodes were folded into each downstream page)
+```bash
+bash skills/wiki-compilation/references/coverage-report.sh
+```
+
+- `source_file: raw/...` in each wiki source page records which raw produced it
+- `merged-from` in wiki pages provides provenance (which raw files were used)
+- `derived-from` is set automatically by KiwiFS from the `X-Provenance` header
+- **No special frontmatter** is needed on raw files — they stay clean and portable
 
 ## Three layers
 
