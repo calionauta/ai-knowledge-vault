@@ -373,6 +373,8 @@ Report findings — do not auto-fix without confirmation.
 
 ## Workflow: Health Report
 
+**When the user asks about wiki health, always run the health report first.**
+
 Run weekly or on demand to analyze the wiki's graph health.
 No LLM cost — all checks are deterministic.
 
