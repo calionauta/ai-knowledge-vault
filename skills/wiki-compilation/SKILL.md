@@ -67,6 +67,7 @@ Scripts available in `$SKILL_DIR/references/`:
 | `coverage-report.sh` | Portable coverage (no frontmatter needed) | Check coverage |
 | `detect-changes.sh` | Find raw files with changed content | Recompile |
 | `lint.sh` | Check orphan pages, missing metadata | Lint |
+| `health-report.sh` | Analyze graph health: orphans, hub stubs, broken links, communities | Weekly / On demand |
 
 ## CRITICAL RULES
 
@@ -367,6 +368,48 @@ Checks performed:
 Additionally, flag stale pages (not updated in 30+ days) by checking `last_updated` dates.
 
 Report findings — do not auto-fix without confirmation.
+
+## Workflow: Health Report
+
+Run weekly or on demand to analyze the wiki's graph health.
+No LLM cost — all checks are deterministic.
+
+```bash
+bash $SKILL_DIR/references/health-report.sh
+```
+
+Checks performed:
+1. **Orphan wiki pages** — wiki pages with zero inbound `[[wikilinks]]` (no one links to them)
+2. **Hub stubs** — pages with many outbound links but likely thin content
+3. **Broken wikilinks** — edges pointing to pages that don't exist in the graph
+4. **Community clusters** — isolated knowledge communities detected by graph analytics
+
+Also accepts `--json` for machine parsing:
+```bash
+bash $SKILL_DIR/references/health-report.sh --json
+```
+
+**Interpreting the output:**
+
+| Check "fail" | What it means | Suggested action |
+|---|---|---|
+| Many orphan wiki pages | Content exists but isn't linked | Add `[[wikilinks]]` from other pages |
+| Hub stubs | Page has many links but may lack depth | Read the page, expand content if needed |
+| Broken wikilinks | `[[Link]]` points to non-existent page | Either create the page or fix the link |
+| Many communities (>3) | Knowledge is fragmented | Look for bridge topics to connect clusters |
+
+Report findings — do not auto-fix without confirmation.
+
+Can be scheduled via Mercury:
+```yaml
+# ~/.mercury/schedules.yaml
+tasks:
+  - name: wiki-health
+    description: Run weekly wiki health check
+    cron: "0 6 * * 1"  # Every Monday at 6 AM
+    prompt: "Run the wiki health report and report findings."
+    skillName: wiki-compilation
+```
 
 ## Workflow: Query
 

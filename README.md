@@ -478,6 +478,39 @@ If running on a server, use a reverse proxy or Tailscale to access port 6174.
 
 ---
 
+## Mercury Schedules
+
+Mercury supports scheduled tasks via `~/.mercury/schedules.yaml`.
+Two schedules are recommended for any ai-knowledge-vault setup:
+
+| Schedule | Cron | Purpose |
+|----------|------|---------|
+| `git-push-kiwifs` | `*/30 * * * *` | Push KiwiFS auto-commits to GitHub every 30 minutes |
+| `wiki-compilation` | `0 2 * * *` | Compile new and changed raw notes into wiki daily at 2 AM |
+
+**Default config** (copy during setup):
+
+```yaml
+# ~/.mercury/schedules.yaml
+tasks:
+  - name: git-push-kiwifs
+    description: Push KiwiFS auto-commits to GitHub every 30 minutes
+    cron: "*/30 * * * *"
+    command: docker exec kiwifs sh -c "cd /data && git push origin main"
+
+  - name: wiki-compilation
+    description: Compile new and changed raw notes into wiki daily at 2 AM
+    cron: "0 2 * * *"
+    skillName: wiki-compilation
+    sourceChannelType: internal
+```
+
+> These instructions are **setup-time only**. Once the LLM agent creates the schedules,
+> it doesn't need to re-read them. That's why they're in the README, not AGENTS.md.
+> The AGENTS.md stays focused on session-level rules, not one-time setup.
+
+---
+
 ## Mercury Skills — Notes + Projects
 
 Mercury's skills are the bridge between your notes and your projects.
