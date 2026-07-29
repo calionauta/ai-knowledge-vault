@@ -229,16 +229,12 @@ if not orphans_only:
 if orphans:
     print("")
     print("⚠  {} orphan wiki pages (no inbound [[links]]):".format(g("wiki_orphans")))
-    shown = 0
     total_orphans = g("wiki_orphans")
-    for p in orphans:
-        shown += 1
-        if shown > limit:
-            remaining = total_orphans - limit
-            if remaining > 0:
-                print("   ... and {} more".format(remaining))
-            break
+    for p in orphans[:limit]:
         print("   - [[{}]]".format(name(p)))
+    remaining = total_orphans - limit
+    if remaining > 0:
+        print("   ... and {} more".format(remaining))
     print("   💡 Add [[links]] from related pages to connect orphans.")
 
 if orphans_only:
@@ -259,16 +255,12 @@ if stubs:
 if broken:
     print("")
     print("💔  {} broken [[wikilinks]]:".format(g("broken_links")))
-    shown = 0
     total_broken = g("broken_links")
-    for b in broken:
-        shown += 1
-        if shown > limit:
-            remaining = total_broken - limit
-            if remaining > 0:
-                print("   ... and {} more".format(remaining))
-            break
+    for b in broken[:limit]:
         print("   - [[{}]]".format(b))
+    remaining = total_broken - limit
+    if remaining > 0:
+        print("   ... and {} more".format(remaining))
     print("   💡 Either create the missing pages or remove the links.")
 
 if comps > 1:
