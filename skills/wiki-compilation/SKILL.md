@@ -73,7 +73,7 @@ Scripts available in `$SKILL_DIR/references/`:
 2. Wiki pages can be created/updated. Source pages are append-only by default — updates are allowed only during explicit recompilation (detect-changes.sh found a checksum mismatch).
 3. Flag contradictions. Never silently resolve them.
 4. Update index.md on every change via `$SKILL_DIR/references/update-meta.sh --rebuild-index`.
-5. **Every wiki page MUST include `merged-from`** in frontmatter — this is how KiwiFS tracks coverage in the memory report.
+5. **Every wiki page MUST include `memory_kind: semantic` and `merged-from`** in frontmatter — both are required for KiwiFS memory report tracking.
 6. **Before creating a source page, run `find-unmerged.sh` to check if one already exists.**
 7. Every wiki page you write must ALSO be registered via `update-meta.sh --log "<entry>"`.
 

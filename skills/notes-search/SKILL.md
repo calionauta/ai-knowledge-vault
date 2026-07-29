@@ -4,7 +4,7 @@ description: >
   Search, read, and write notes in a KiwiFS markdown vault.
   All notes go into Daily files with timestamped headings.
   CRITICAL: Only report what commands return. Never fabricate data.
-version: 1.0.0
+version: 1.1.0
 intents:
   - search notes
   - find note
