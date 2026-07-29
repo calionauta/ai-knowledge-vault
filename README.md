@@ -258,9 +258,20 @@ cd .kiwi
 ln -sf ../AGENTS.md playbook.md
 ```
 
-> **Vector search note:** The pre-built KiwiFS Docker image (`ameliaanhlam/kiwifs`)
-> does **not** include ONNX runtime. Vector/semantic search is disabled by default.
-> Full-text search (BM25/FTS5) works out of the box with any image.
+> **⚠️ Vector search note:** The pre-built KiwiFS Docker image (`ameliaanhlam/kiwifs`)
+> does **not** include ONNX runtime. Building with `-tags onnx` is possible but
+> **not recommended** — the `reindex --vector` command crashes due to a known
+> conflict between the `go-graphviz` and `onnxruntime_go` dependencies on ARM64
+> and x86_64 (WebAssembly init panic). This is a [known issue](https://github.com/goccy/go-graphviz/issues/118)
+> with the wazero/wasm runtime.
+>
+> **Recommended alternative:** Use [Ollama](https://ollama.ai) as the embedder
+> (see [KiwiFS docs](https://docs.kiwifs.com/deploy/ollama-vector-search) for
+> the official guide). Ollama runs as a sidecar container and works with the
+> official KiwiFS image — no custom build needed.
+>
+> Full-text search (BM25/FTS5) works out of the box with any image and covers
+> most use cases.
 
 ### Docker (no semantic search — simpler)
 
@@ -369,14 +380,27 @@ docker run -d \
 # Download the multilingual model to the persistent volume
 docker exec -u root kiwifs sh -c '
   apt-get update -qq && apt-get install -y -qq curl ca-certificates
-  mkdir -p /data/.kiwi/models/multilingual-e5-small/onnx
-  curl -fSL -o /data/.kiwi/models/multilingual-e5-small/onnx/model.onnx \
-    "https://huggingface.co/intfloat/multilingual-e5-small/resolve/main/onnx/model.onnx"
-  curl -fSL -o /data/.kiwi/models/multilingual-e5-small/tokenizer.json \
-    "https://huggingface.co/intfloat/multilingual-e5-small/resolve/main/tokenizer.json"
-  chown -R kiwi:kiwi /data/.kiwi/models
+  kiwifs model download multilingual-e5-small
+  cp -r /root/.kiwi/models /home/kiwi/.kiwi/
+  chown -R kiwi:kiwi /home/kiwi/.kiwi /data/.kiwi
 '
+
+# Rebuild the vector index (may take a while on first run)
+docker exec -u kiwi kiwifs kiwifs reindex --root /data --vector
 ```
+
+> **⚠️ TMPDIR requirement:** The ONNX binary uses `go-graphviz` (wazero WebAssembly runtime)
+> which extracts files to `$TMPDIR/go-graphviz/`. The Dockerfile.onnx sets
+> `TMPDIR=/data/.kiwi/tmp` (inside the persistent volume). **Do not override TMPDIR to `/tmp`**
+> or system cleanup may delete wasm files, causing `permission denied` errors.
+>
+> If running KiwiFS outside Docker with ONNX:
+> ```bash
+> export TMPDIR=/path/to/persistent/kiwi-writable/dir
+> kiwifs serve --root ./my-vault
+> ```
+>
+> The `Dockerfile.onnx` already includes `ENV TMPDIR=/data/.kiwi/tmp` — no extra config needed.
 
 > **Note:** ONNX Runtime v1.28+ supports both x86_64 and ARM64 Linux. The `--platform`
 > flag is omitted from `docker build` so it builds natively for your architecture.

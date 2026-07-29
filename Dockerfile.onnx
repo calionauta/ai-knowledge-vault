@@ -54,7 +54,8 @@ RUN ln -sf libonnxruntime.so.1.28.0 /usr/lib/libonnxruntime.so.1 && \
     ln -sf libonnxruntime.so /usr/lib/onnxruntime.so && ldconfig
 
 COPY --from=builder /kiwifs /usr/local/bin/kiwifs
-RUN mkdir -p /data && chown kiwi:kiwi /data
+RUN mkdir -p /data .kiwi/tmp && chown -R kiwi:kiwi /data
+ENV TMPDIR=/data/.kiwi/tmp
 USER kiwi
 EXPOSE 3333
 VOLUME ["/data"]
