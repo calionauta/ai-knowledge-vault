@@ -35,76 +35,92 @@ graph = json.loads(sys.stdin.read())
 nodes = graph.get("nodes", [])
 edges = graph.get("edges", [])
 
-# Build maps
+# --- Normalize paths for consistent comparison ---
+# Graph API may return paths as: "wiki/concepts/Reautoria.md", 
+# "Reautoria", "sources/terapia-narrativa-curso", "index.md"
+# Normalize ALL to base names for reliable matching.
+def norm(path):
+    """Convert any path to base name without extension."""
+    base = os.path.basename(path)
+    if base.endswith(".md"):
+        base = base[:-3]
+    return base
+
+# Build normalized node lookup
 node_set = {n["path"] for n in nodes}
-
-# Normalized node names: strip directory prefix and .md extension
-# e.g. "wiki/concepts/Reautoria.md" → "Reautoria"
-normalized_names = set()
+node_basenames = {}  # base_name → full_path
 for p in node_set:
-    if p.endswith(".md"):
-        base = os.path.basename(p)
-        base = base[:-3]  # strip .md
-        normalized_names.add(base)
-
-in_degree = {}
-out_degree = {}
-for e in edges:
-    src = e.get("source", "")
-    tgt = e.get("target", "")
-    out_degree[src] = out_degree.get(src, 0) + 1
-    in_degree[tgt] = in_degree.get(tgt, 0) + 1
+    base = norm(p)
+    if base not in node_basenames:
+        node_basenames[base] = p
 
 # Separate wiki from raw
 wiki_nodes = [n for n in nodes if n["path"].startswith("wiki/")]
 raw_nodes = [n for n in nodes if n["path"].startswith("raw/")]
-wiki_paths = {n["path"] for n in wiki_nodes}
+wiki_basenames = {norm(n["path"]) for n in wiki_nodes}
+
+# Build normalized degree maps
+in_degree = {}    # full path → count
+out_degree = {}   # full path → count
+for e in edges:
+    src = e.get("source", "")
+    tgt = e.get("target", "")
+    # Find matching full path for src and tgt
+    src_full = node_basenames.get(norm(src), src)
+    tgt_full = node_basenames.get(norm(tgt), tgt)
+    out_degree[src_full] = out_degree.get(src_full, 0) + 1
+    in_degree[tgt_full] = in_degree.get(tgt_full, 0) + 1
 
 # 1. Orphan wiki pages (zero inbound links)
 orphan_wiki = []
-for p in wiki_paths:
-    if not p.endswith(".md"):
+for p in sorted(wiki_nodes, key=lambda n: n["path"]):
+    path = p["path"]
+    if not path.endswith(".md"):
         continue
-    pg = p.replace("wiki/", "", 1).replace(".md", "", 1)
+    pg = norm(path)
     if pg in ("index", "log", "overview"):
         continue
-    if in_degree.get(p, 0) == 0:
-        orphan_wiki.append(p)
+    if in_degree.get(path, 0) == 0:
+        orphan_wiki.append(path)
 
 # 2. Hub stubs: pages with out_degree > avg*2
 all_out = list(out_degree.values())
 avg_out = sum(all_out) / len(all_out) if all_out else 0
 hub_stubs = []
-for p in wiki_paths:
-    od = out_degree.get(p, 0)
+for p in wiki_nodes:
+    path = p["path"]
+    od = out_degree.get(path, 0)
     if od > avg_out * 2 and od >= 3:
-        hub_stubs.append({"path": p, "out_degree": od})
+        hub_stubs.append({"path": path, "out_degree": od})
 hub_stubs.sort(key=lambda x: -x["out_degree"])
 
 # 3. Broken wikilinks: edges targeting non-existent pages
-# Nodes have paths like "wiki/concepts/Reautoria.md" but wikilinks in edges
-# are just "Reautoria" (no prefix, no extension). Normalize both for comparison.
 broken = []
 for e in edges:
     tgt = e.get("target", "")
     # Skip raw/ and absolute paths (they exist by definition)
     if tgt.startswith("raw/") or tgt.startswith("/"):
         continue
-    # Check against full paths, normalized names, and wiki/ prefix
-    if tgt not in node_set and tgt not in normalized_names and "wiki/" + tgt not in node_set:
+    # Check against normalized lookup
+    tgt_base = norm(tgt)
+    if tgt_base not in node_basenames and tgt not in node_set:
         broken.append(tgt)
 
 broken_targets = sorted(set(broken))
 
-# 4. Community / component info from analytics
+# 4. Edge-to-node ratio (wiki pages only)
+wiki_edge_count = 0
+for e in edges:
+    src_base = norm(e.get("source", ""))
+    if src_base in wiki_basenames:
+        wiki_edge_count += 1
+edge_to_node = round(wiki_edge_count / len(wiki_nodes), 2) if wiki_nodes else 0
+
+# 5. Analytics from KiwiFS
 total_graph_nodes = analytics.get("total_nodes", len(nodes))
 total_graph_edges = analytics.get("total_edges", len(edges))
 components = analytics.get("components", 0)
 analytics_orphans = analytics.get("orphans", [])
-
-# Edge-to-node ratio (wiki pages only)
-wiki_edge_count = sum(1 for e in edges if e.get("source","").startswith("wiki/"))
-edge_to_node = round(wiki_edge_count / len(wiki_nodes), 2) if wiki_nodes else 0
 
 result = {
     "total_graph_nodes": total_graph_nodes,
