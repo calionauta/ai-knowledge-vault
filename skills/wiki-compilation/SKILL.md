@@ -18,6 +18,10 @@ intents:
   - check coverage
   - check health
   - health report
+  - list orphans
+  - orphan pages
+  - list broken links
+  - broken wikilinks
 allowed-tools:
   - exec
   - bash
@@ -388,9 +392,29 @@ Checks performed:
 3. **Broken wikilinks** — edges pointing to pages that don't exist in the graph
 4. **Community clusters** — isolated knowledge communities detected by graph analytics
 
-Also accepts `--json` for machine parsing:
+Also accepts:
+- `--json` — machine-readable JSON (all items, no limit)
+- `--orphans` — show only orphan wiki pages (skips hub stubs, broken links, communities)
+- `--limit N` — show up to N items per category (default: 15)
+
+**When the user asks about orphans or broken links, run the health report with the matching flag.**
+
+Examples:
 ```bash
+# Full health report
+bash $SKILL_DIR/references/health-report.sh
+
+# JSON for machine parsing
 bash $SKILL_DIR/references/health-report.sh --json
+
+# Only orphan pages
+bash $SKILL_DIR/references/health-report.sh --orphans
+
+# Show up to 50 broken links
+bash $SKILL_DIR/references/health-report.sh --limit 50
+
+# Only orphans, show all 7
+bash $SKILL_DIR/references/health-report.sh --orphans --limit 100
 ```
 
 **Interpreting the output:**
