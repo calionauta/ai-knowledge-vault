@@ -555,10 +555,23 @@ pattern: raw sources compiled into structured, interlinked wiki pages.
 
 Inspired by [nashsu/llm_wiki](https://github.com/nashsu/llm_wiki) (purpose/schema
 split, two-step ingest), [SamurAIGPT/llm-wiki-agent](https://github.com/SamurAIGPT/llm-wiki-agent)
-(health/lint boundary, post-ingest validation, graph health report), and
-[OpenKnowledge](https://openknowledge.ai) (provisional/canonical split).
+(health/lint boundary, post-ingest validation, graph health report),
+[OpenKnowledge](https://openknowledge.ai) (provisional/canonical split), and
+[KiwiFS](https://docs.kiwifs.com/concepts/episodic-memory) (episodic memory model,
+merged-from tracking, memory report analytics).
 
-### Three layers
+#### Memory tracking with KiwiFS
+
+The vault uses KiwiFS's [episodic memory model](https://docs.kiwifs.com/concepts/episodic-memory)
+to track which raw notes have been compiled into the wiki:
+
+- **Raw files** (`raw/`) get `memory_kind: episodic` + `episode_id` in frontmatter
+- **Wiki pages** (`wiki/`) get `memory_kind: semantic` + `merged-from` referencing the `episode_id`
+- The **memory report** (`GET /api/kiwi/memory/report`) shows `coverage_pct` — what % of raw files have been merged
+- `derived-from` is set automatically by KiwiFS from the `X-Provenance` header (records which agent run produced the file)
+- `merged-from` is set by the wiki compilation skill (records which episodes were folded into each downstream page)
+
+## Three layers
 
 ```
 raw/              ← immutable source notes (you write)

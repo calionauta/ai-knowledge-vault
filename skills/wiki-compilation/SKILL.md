@@ -99,29 +99,46 @@ wiki/
 
 ### How compilation tracking works
 
-KiwiFS provides two mechanisms for tracking what has been compiled:
+KiwiFS provides a memory report that tracks which raw files have been
+"consumed" by downstream pages. The tracking uses three frontmatter fields:
 
-**A) `merged-from` frontmatter** — each wiki page lists which raw files were used:
-```yaml
-merged-from:
-  - type: episode
-    id: raw/Daily/2026-07-28.md
-```
+**A) `memory_kind: episodic`** — must be set on raw files so KiwiFS recognizes them as episodes.
+The `episode_id` field gives each raw file a unique identifier.
 
-**B) Memory report API** — shows how many raw files have been merged:
+**B) `memory_kind: semantic`** — must be set on wiki pages that consume episodes.
+The `merged-from` field in these pages references the `episode_id` of each raw file used.
+
+**C) `derived-from`** — set automatically by KiwiFS from the `X-Provenance` header.
+Records which agent run produced the file. Not required for memory tracking.
+
+| Field | Set by | Purpose |
+|-------|--------|---------|
+| `memory_kind` | You | Classifies file as `episodic` or `semantic` |
+| `episode_id` | You | Unique ID for the raw file |
+| `derived-from` | KiwiFS (auto) | Which run produced this file |
+| `merged-from` | You (consolidation job) | Which episodes were folded into this downstream page |
+
+**The matching logic:** KiwiFS looks at all `merged-from` entries across all files
+with `memory_kind: semantic`. Each entry's `id` is matched against the `episode_id`
+(or fallback `id`) of files with `memory_kind: episodic`. If they match, the episode
+is "covered" and counted in `merged_from_refs`.
+
+**D) Memory report API** — shows how many raw files have been merged:
 ```bash
 bash $SKILL_DIR/references/check-coverage.sh
 ```
 
-**C) Source page existence** — if `wiki/sources/<slug>.md` exists, the raw file has been compiled at least once. But this alone doesn't update the memory report — `merged-from` is required.
+**E) Source page existence** — if `wiki/sources/<slug>.md` exists, the raw file has been compiled at least once.
+But this alone doesn't update the memory report — `merged-from` + correct `memory_kind` on the wiki page is required.
 
 ### Page frontmatter
 
-**Source page** — stores the SHA256 checksum of the raw file for change detection:
+**Source page** — stores `memory_kind: semantic` and the SHA256 checksum for change detection:
 ```yaml
 ---
 title: "Source Title"
 type: source
+memory_kind: semantic
 tags: []
 date: YYYY-MM-DD
 source_file: raw/...
@@ -129,7 +146,7 @@ last_updated: YYYY-MM-DD
 source_checksum: sha256-abc123...
 merged-from:
   - type: episode
-    id: raw/path/to/file.md
+    id: <episode_id_of_raw_file>
 ---
 ```
 
@@ -138,18 +155,19 @@ merged-from:
 ---
 title: "Page Name"
 type: entity | concept | synthesis
+memory_kind: semantic
 tags: []
 sources: [source-slug]
 last_updated: YYYY-MM-DD
 merged-from:
   - type: episode
-    id: raw/path/to/file.md
+    id: <episode_id_of_raw_file>
 ---
 ```
 
 > `merged-from` lists one or more raw files that were used to create/update this page.
-> KiwiFS reads this field to calculate `coverage_pct` in the memory report.
-> Sources can be shared across multiple entity/concept pages — each must list its own `merged-from`.
+> The `id` in `merged-from` must match the `episode_id` of the raw file.
+> KiwiFS reads `merged-from` + `memory_kind: semantic` to calculate `coverage_pct` in the memory report.
 >
 > `source_checksum` is the SHA256 hash of the raw file content at compile time.
 > On subsequent runs, the skill re-hashes and compares — if different, the note was edited and needs recompilation.
@@ -190,16 +208,22 @@ b. LLM extracts from the content:
    - **Contradictions** with existing wiki content (read existing pages via curl first)
    - **Overview revision** → only if the changes affect the overall synthesis
 
-c. Every wiki page written MUST include:
-   ```yaml
-   merged-from:
-     - type: episode
-       id: <raw_path>
-   ```
+c. Every wiki page MUST have:
+   - `memory_kind: semantic` in frontmatter
+   - `merged-from` with `id` matching the raw file's `episode_id`
 
    Source pages MUST also include:
    ```yaml
    source_checksum: sha256-<hash_of_raw_content>
+   ```
+
+   The `id` in `merged-from` should match the `episode_id` of the raw file.
+   Currently, raw files may not have `episode_id` set. In that case, derive one
+   from the slug: the slug IS the `episode_id` for that raw file.
+   ```yaml
+   merged-from:
+     - type: episode
+       id: <slug>  # e.g., "daily-2026-07-28"
    ```
 
 ### Step 3 — Write pages
@@ -243,10 +267,13 @@ Episodic files: 3771
 
 ### Source page format
 
+Note: `memory_kind: semantic` is REQUIRED for KiwiFS memory tracking.
+
 ```markdown
 ---
 title: "Source Title"
 type: source
+memory_kind: semantic
 tags: []
 date: YYYY-MM-DD
 source_file: raw/...
@@ -254,7 +281,7 @@ last_updated: YYYY-MM-DD
 source_checksum: sha256-<hash>
 merged-from:
   - type: episode
-    id: raw/path/to/file.md
+    id: <slug>
 ---
 
 ## Summary
@@ -281,12 +308,13 @@ merged-from:
 ---
 title: "Entity Name"
 type: entity
+memory_kind: semantic
 tags: []
 sources: [slug1]
 last_updated: YYYY-MM-DD
 merged-from:
   - type: episode
-    id: raw/path/to/file.md
+    id: <slug>
 ---
 
 ## Summary
@@ -306,12 +334,13 @@ How this entity appears across sources.
 ---
 title: "Concept Name"
 type: concept
+memory_kind: semantic
 tags: []
 sources: [slug1]
 last_updated: YYYY-MM-DD
 merged-from:
   - type: episode
-    id: raw/path/to/file.md
+    id: <slug>
 ---
 
 ## Summary
