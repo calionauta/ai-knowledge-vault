@@ -19,7 +19,6 @@ intents:
 allowed-tools:
   - exec
   - bash
-schedule: "0 2 * * *"
 ---
 
 # Wiki Compilation Skill
