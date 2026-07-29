@@ -391,16 +391,15 @@ docker exec -u kiwi kiwifs kiwifs reindex --root /data --vector
 
 > **⚠️ TMPDIR requirement:** The ONNX binary uses `go-graphviz` (wazero WebAssembly runtime)
 > which extracts files to `$TMPDIR/go-graphviz/`. The Dockerfile.onnx sets
-> `TMPDIR=/data/.kiwi/tmp` (inside the persistent volume). **Do not override TMPDIR to `/tmp`**
-> or system cleanup may delete wasm files, causing `permission denied` errors.
+> `TMPDIR=/data/.kiwi/tmp` (inside the persistent volume). If you override `TMPDIR`
+> to `/tmp` or another directory, ensure the directory exists and is writable by
+> the `kiwi` user before starting the server.
 >
 > If running KiwiFS outside Docker with ONNX:
 > ```bash
 > export TMPDIR=/path/to/persistent/kiwi-writable/dir
 > kiwifs serve --root ./my-vault
 > ```
->
-> The `Dockerfile.onnx` already includes `ENV TMPDIR=/data/.kiwi/tmp` — no extra config needed.
 
 > **Note:** ONNX Runtime v1.28+ supports both x86_64 and ARM64 Linux. The `--platform`
 > flag is omitted from `docker build` so it builds natively for your architecture.
