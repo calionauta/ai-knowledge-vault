@@ -347,9 +347,12 @@ CMD ["serve", "--root", "/data", "--port", "3333", "--host", "0.0.0.0"]
 Build and run:
 
 ```bash
-# Clone kiwifs
+# Clone kiwifs (needed for the Dockerfile build context)
 gh repo clone kiwifs/kiwifs /tmp/kiwifs || \
   git clone https://github.com/kiwifs/kiwifs.git /tmp/kiwifs
+
+# Copy the ONNX Dockerfile into the kiwifs source
+cp Dockerfile.onnx /tmp/kiwifs/
 
 # Build (auto-detects your CPU architecture)
 cd /tmp/kiwifs

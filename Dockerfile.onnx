@@ -1,0 +1,62 @@
+# syntax=docker/dockerfile:1
+# Dockerfile for KiwiFS with ONNX Runtime support (multilingual semantic search)
+# Build from the kiwifs repo root:
+#   cp ai-knowledge-vault/Dockerfile.onnx .
+#   docker build -t kiwifs-onnx -f Dockerfile.onnx .
+#
+# Auto-detects your CPU architecture (x86_64 or ARM64).
+
+# Stage 1: Build web UI (required for //go:embed ui/dist)
+FROM --platform=$BUILDPLATFORM node:22-alpine AS ui
+WORKDIR /ui
+COPY ui/package.json ui/package-lock.json* ./
+RUN npm ci --no-audit --no-fund --loglevel=error
+COPY ui ./
+ENV NODE_OPTIONS=--max-old-space-size=3072
+RUN npm run build
+
+# Stage 2: Build Go binary with CGO + ONNX
+FROM --platform=$BUILDPLATFORM golang:1.26-bookworm AS builder
+ARG TARGETARCH
+RUN apt-get update && apt-get install -y git ca-certificates pkg-config curl
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Download ONNX Runtime 1.28+ for your arch
+RUN ORT_ARCH=x64; \
+    [ "$TARGETARCH" = "arm64" ] && ORT_ARCH=aarch64; \
+    echo "Downloading ONNX Runtime for ${TARGETARCH} (${ORT_ARCH})..." && \
+    curl -fSL -o /tmp/onnx.tgz \
+      "https://github.com/microsoft/onnxruntime/releases/download/v1.28.0/onnxruntime-linux-${ORT_ARCH}-1.28.0.tgz" && \
+    tar xzf /tmp/onnx.tgz -C /opt/ && \
+    mv /opt/onnxruntime-linux-${ORT_ARCH}-1.28.0 /opt/onnxruntime && \
+    rm /tmp/onnx.tgz
+
+COPY . .
+RUN rm -rf ui/dist
+COPY --from=ui /ui/dist ./ui/dist
+
+ENV CGO_ENABLED=1
+ENV CGO_CFLAGS="-I/opt/onnxruntime/include"
+ENV CGO_LDFLAGS="-L/opt/onnxruntime/lib -lonnxruntime"
+ENV GOOS=linux GOARCH=$TARGETARCH
+RUN go build -tags onnx -ldflags="-s -w" -o /kiwifs .
+
+# Stage 3: Runtime
+FROM debian:bookworm-slim
+RUN apt-get update && apt-get install -y ca-certificates git && \
+    rm -rf /var/lib/apt/lists/* && useradd -m kiwi
+
+COPY --from=builder /opt/onnxruntime/lib/libonnxruntime.so.1.28.0 /usr/lib/
+RUN ln -sf libonnxruntime.so.1.28.0 /usr/lib/libonnxruntime.so.1 && \
+    ln -sf libonnxruntime.so.1 /usr/lib/libonnxruntime.so && \
+    ln -sf libonnxruntime.so /usr/lib/onnxruntime.so && ldconfig
+
+COPY --from=builder /kiwifs /usr/local/bin/kiwifs
+RUN mkdir -p /data && chown kiwi:kiwi /data
+USER kiwi
+EXPOSE 3333
+VOLUME ["/data"]
+ENTRYPOINT ["kiwifs"]
+CMD ["serve", "--root", "/data", "--port", "3333", "--host", "0.0.0.0"]
