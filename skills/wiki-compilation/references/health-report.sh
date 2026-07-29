@@ -20,9 +20,8 @@ ANALYTICS_FILE=$(mktemp /tmp/kiwi-health-XXXXXX.json)
 curl -sf "${KIWI_API}/api/kiwi/graph/analytics?limit=100" > "$ANALYTICS_FILE" 2>/dev/null || echo '{}' > "$ANALYTICS_FILE"
 
 # --- Run health checks via Python ---
-# Pass graph via stdin, analytics file path via arg
 REPORT=$(echo "$GRAPH" | python3 -c '
-import sys, json
+import sys, json, os
 
 # Read analytics from file passed as argument
 analytics_file = sys.argv[1] if len(sys.argv) > 1 else "/dev/null"
@@ -38,6 +37,16 @@ edges = graph.get("edges", [])
 
 # Build maps
 node_set = {n["path"] for n in nodes}
+
+# Normalized node names: strip directory prefix and .md extension
+# e.g. "wiki/concepts/Reautoria.md" → "Reautoria"
+normalized_names = set()
+for p in node_set:
+    if p.endswith(".md"):
+        base = os.path.basename(p)
+        base = base[:-3]  # strip .md
+        normalized_names.add(base)
+
 in_degree = {}
 out_degree = {}
 for e in edges:
@@ -73,14 +82,16 @@ for p in wiki_paths:
 hub_stubs.sort(key=lambda x: -x["out_degree"])
 
 # 3. Broken wikilinks: edges targeting non-existent pages
+# Nodes have paths like "wiki/concepts/Reautoria.md" but wikilinks in edges
+# are just "Reautoria" (no prefix, no extension). Normalize both for comparison.
 broken = []
 for e in edges:
     tgt = e.get("target", "")
-    # Skip raw/ paths (they exist by definition)
+    # Skip raw/ and absolute paths (they exist by definition)
     if tgt.startswith("raw/") or tgt.startswith("/"):
         continue
-    # Check if target exists in nodes
-    if tgt not in node_set and "wiki/" + tgt not in node_set:
+    # Check against full paths, normalized names, and wiki/ prefix
+    if tgt not in node_set and tgt not in normalized_names and "wiki/" + tgt not in node_set:
         broken.append(tgt)
 
 broken_targets = sorted(set(broken))
@@ -122,7 +133,6 @@ if $JSON; then
 fi
 
 # --- Format as human-readable report ---
-# Write report to temp file to avoid stdin conflict with heredoc
 echo "$REPORT" > /tmp/kiwi-format-report.json
 python3 << 'PYEOF'
 import json
