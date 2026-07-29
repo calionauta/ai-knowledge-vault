@@ -16,6 +16,8 @@ intents:
   - detect contradictions
   - run lint
   - check coverage
+  - check health
+  - health report
 allowed-tools:
   - exec
   - bash

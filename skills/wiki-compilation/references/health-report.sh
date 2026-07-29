@@ -1,7 +1,7 @@
 #!/bin/bash
 # health-report.sh — Analyze wiki health: orphans, hubs, broken links, communities.
 #
-# Uses KiwiFS graph API (nodes, edges, analytics).
+# Uses KiwiFS graph API + tree endpoint for complete file resolution.
 # Inspired by SamurAIGPT/llm-wiki-agent's graph health report.
 #
 # Usage: bash health-report.sh [--json]
@@ -15,6 +15,12 @@ JSON=false
 # --- Gather data ---
 GRAPH=$(curl -sf "${KIWI_API}/api/kiwi/graph" 2>/dev/null || echo '{"nodes":[],"edges":[]}')
 
+# Fetch ALL files from tree (to resolve links not in graph)
+RAW_TREE_FILE=$(mktemp /tmp/kiwi-rawtree-XXXXXX.json)
+WIKI_TREE_FILE=$(mktemp /tmp/kiwi-wikitree-XXXXXX.json)
+curl -sf "${KIWI_API}/api/kiwi/tree?path=raw/" > "$RAW_TREE_FILE" 2>/dev/null || echo '{}' > "$RAW_TREE_FILE"
+curl -sf "${KIWI_API}/api/kiwi/tree?path=wiki/" > "$WIKI_TREE_FILE" 2>/dev/null || echo '{}' > "$WIKI_TREE_FILE"
+
 # Analytics is large, pass via temp file
 ANALYTICS_FILE=$(mktemp /tmp/kiwi-health-XXXXXX.json)
 curl -sf "${KIWI_API}/api/kiwi/graph/analytics?limit=100" > "$ANALYTICS_FILE" 2>/dev/null || echo '{}' > "$ANALYTICS_FILE"
@@ -23,22 +29,22 @@ curl -sf "${KIWI_API}/api/kiwi/graph/analytics?limit=100" > "$ANALYTICS_FILE" 2>
 REPORT=$(echo "$GRAPH" | python3 -c '
 import sys, json, os
 
-# Read analytics from file passed as argument
-analytics_file = sys.argv[1] if len(sys.argv) > 1 else "/dev/null"
-try:
-    with open(analytics_file) as f:
-        analytics = json.load(f)
-except:
-    analytics = {}
+def load_json(path):
+    try:
+        with open(path) as f:
+            return json.load(f)
+    except:
+        return {}
+
+analytics = load_json(sys.argv[1])
+raw_tree = load_json(sys.argv[2])
+wiki_tree = load_json(sys.argv[3])
 
 graph = json.loads(sys.stdin.read())
 nodes = graph.get("nodes", [])
 edges = graph.get("edges", [])
 
 # --- Normalize paths for consistent comparison ---
-# Graph API may return paths as: "wiki/concepts/Reautoria.md", 
-# "Reautoria", "sources/terapia-narrativa-curso", "index.md"
-# Normalize ALL to base names for reliable matching.
 def norm(path):
     """Convert any path to base name without extension."""
     base = os.path.basename(path)
@@ -46,9 +52,31 @@ def norm(path):
         base = base[:-3]
     return base
 
-# Build normalized node lookup
+# Recursively collect all file paths from tree
+def collect_paths(node, prefix=""):
+    paths = []
+    for child in node.get("children", []):
+        name = child.get("name", "")
+        if child.get("isDir", False):
+            paths.extend(collect_paths(child, prefix + name + "/"))
+        else:
+            paths.append((prefix + name, name))
+    return paths
+
+raw_files = collect_paths(raw_tree, "raw/")
+wiki_files = collect_paths(wiki_tree, "wiki/")
+all_files = raw_files + wiki_files
+
+# Build ALL file basenames (from tree, includes files without links)
+all_basenames = {}
+for full_path, name in all_files:
+    base = norm(full_path)
+    if base not in all_basenames:
+        all_basenames[base] = full_path
+
+# Build graph node lookup
 node_set = {n["path"] for n in nodes}
-node_basenames = {}  # base_name → full_path
+node_basenames = {}
 for p in node_set:
     base = norm(p)
     if base not in node_basenames:
@@ -59,13 +87,12 @@ wiki_nodes = [n for n in nodes if n["path"].startswith("wiki/")]
 raw_nodes = [n for n in nodes if n["path"].startswith("raw/")]
 wiki_basenames = {norm(n["path"]) for n in wiki_nodes}
 
-# Build normalized degree maps
-in_degree = {}    # full path → count
-out_degree = {}   # full path → count
+# Build normalized degree maps from graph edges
+in_degree = {}
+out_degree = {}
 for e in edges:
     src = e.get("source", "")
     tgt = e.get("target", "")
-    # Find matching full path for src and tgt
     src_full = node_basenames.get(norm(src), src)
     tgt_full = node_basenames.get(norm(tgt), tgt)
     out_degree[src_full] = out_degree.get(src_full, 0) + 1
@@ -95,15 +122,23 @@ for p in wiki_nodes:
 hub_stubs.sort(key=lambda x: -x["out_degree"])
 
 # 3. Broken wikilinks: edges targeting non-existent pages
+# Check against: graph nodes (linked) AND tree files (all files)
 broken = []
 for e in edges:
     tgt = e.get("target", "")
-    # Skip raw/ and absolute paths (they exist by definition)
+    # Skip raw/ and absolute paths
     if tgt.startswith("raw/") or tgt.startswith("/"):
         continue
-    # Check against normalized lookup
     tgt_base = norm(tgt)
-    if tgt_base not in node_basenames and tgt not in node_set:
+    # Three-layer check: graph nodes, tree files, raw fallback
+    in_graph = tgt_base in node_basenames or tgt in node_set
+    in_tree = tgt_base in all_basenames or tgt in all_basenames
+    # Also check with raw/ prefix (wikilinks like [[Daily/2026-06-02]])
+    raw_path = "raw/" + tgt
+    raw_base = norm(raw_path)
+    in_tree_raw = raw_base in all_basenames or raw_path in all_basenames
+    
+    if not in_graph and not in_tree and not in_tree_raw:
         broken.append(tgt)
 
 broken_targets = sorted(set(broken))
@@ -138,10 +173,10 @@ result = {
 }
 
 print(json.dumps(result, indent=2))
-' "$ANALYTICS_FILE")
+' "$ANALYTICS_FILE" "$RAW_TREE_FILE" "$WIKI_TREE_FILE")
 
 # Cleanup
-rm -f "$ANALYTICS_FILE"
+rm -f "$ANALYTICS_FILE" "$RAW_TREE_FILE" "$WIKI_TREE_FILE"
 
 if $JSON; then
   echo "$REPORT"
@@ -179,33 +214,43 @@ print("────────────────────────�
 orphans = r.get("orphan_list", [])
 if orphans:
     print("")
-    print("⚠  Orphan wiki pages (no inbound links):")
+    print("⚠  {} orphan wiki pages (no inbound [[links]] from other wiki pages)".format(g("wiki_orphans")))
     for p in orphans[:10]:
         print("   - [[{}]]".format(name(p)))
     if len(orphans) > 10:
         print("   ... and {} more".format(len(orphans) - 10))
+    print("   💡 Add [[links]] from related pages. Hub stubs (see below)")
+    print("      are natural candidates to link to orphans.")
 
 stubs = r.get("hub_stubs", [])
 if stubs:
     print("")
-    print("⚡ Potential hub stubs (many links, check content depth):")
+    print("⚡  {} potential hub stubs (high out-degree — check content depth)".format(len(stubs)))
     for h in stubs[:5]:
         print("   - [[{}]] ({} outbound links)".format(name(h.get("path","")), h.get("out_degree",0)))
+    if len(stubs) > 5:
+        print("   ... and {} more".format(len(stubs) - 5))
+    print("   💡 Read these pages. High link count with shallow content")
+    print("      suggests the page is well-connected but lacks depth.")
 
 broken = r.get("broken_list", [])
 if broken:
     print("")
-    print("💔 Broken wikilinks (target page does not exist):")
+    print("💔  {} broken [[wikilinks]] (target page not found in vault)".format(g("broken_links")))
     for b in broken[:10]:
         print("   - [[{}]]".format(b))
     if len(broken) > 10:
         print("   ... and {} more".format(len(broken) - 10))
+    print("   💡 Either create the missing pages or remove the links.")
+    print("      Common candidates: names that should be entities, daily")
 
 comps = g("components")
 if comps > 1:
     print("")
-    print("🌐 {} knowledge communities detected.".format(comps))
-    print("   More than 1 community may indicate isolated topic clusters.")
+    print("🌐  {} knowledge communities detected.".format(comps))
+    print("   💡 Isolated clusters mean knowledge fragmentation.")
+    print("      Look for bridge topics that connect two clusters.")
+    print("      An edge-to-node ratio < 8 suggests sparse linking.")
 
 if not orphans and not broken:
     print("")
