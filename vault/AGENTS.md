@@ -140,5 +140,11 @@ text patterns (confirmed triggers: 50+ consecutive spaces, mixed Unicode,
 very long lines). See:
 - [sugarme/tokenizer#78](https://github.com/sugarme/tokenizer/issues/78)
 - [sugarme/tokenizer#77](https://github.com/sugarme/tokenizer/issues/77)
+- [kiwifs#294](https://github.com/kiwifs/kiwifs/issues/294) — partial fix:
+  `recover()` added for malformed JSON, but the Metaspace slice-bounds bug
+  is in the tokenizer itself, not in KiwiFS code.
 
-Only affects ONNX reindex. FTS5 (BM25) works fine. Fix pending upstream.
+The panic only kills the `reindex --vector` process. The KiwiFS server stays
+up and FTS5 (BM25) continues working. New or modified files are auto-indexed
+by the background vector indexer. If a file triggers the panic, that file is
+silently skipped — the server recovers.
