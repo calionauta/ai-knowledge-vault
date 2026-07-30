@@ -132,23 +132,10 @@ via the Model Context Protocol (Claude Desktop, Cursor, etc.).
 
 ## Known Issues
 
-### Tokenizer panic with consecutive whitespace (ONNX vector search)
+### ONNX vector search crashes on 50+ consecutive spaces
 
-**Issue:** [sugarme/tokenizer#78](https://github.com/sugarme/tokenizer/issues/78) — "Panic: slice bounds out of range in Metaspace pretokenizer with consecutive whitespace"
-
-The `sugarme/tokenizer` v0.3.0 library panics when processing text with 50+
-consecutive whitespace characters (e.g. code listings, indented markdown).
-This crashes `kiwifs reindex --root /data --vector` with:
-
-```
-panic: runtime error: slice bounds out of range [957:956]
-github.com/sugarme/tokenizer/normalizer.(*NormalizedString).TransformRange(...)
-```
-
-**Impact:** Only affects ONNX semantic search (`reindex --vector`). FTS5
-(BM25) search is unaffected. Affects approximately 1.7% of text chunks
-with heavy indentation.
-
-**Workaround:** Collapse consecutive whitespace in source files before
-reindexing, or use Ollama as embedder (avoids the buggy tokenizer).
-The issue is still open in the upstream library.
+When `provider = "onnx"` is configured, `kiwifs reindex --vector` panics on text
+with 50+ consecutive whitespace chars. This is a bug in
+[`sugarme/tokenizer` v0.3.0](https://github.com/sugarme/tokenizer/issues/78)
+(Metaspace pretokenizer, slice bounds error). Only affects ONNX reindex;
+FTS5 (BM25) works fine. Fix pending upstream.
