@@ -55,11 +55,12 @@ When migrating an existing vault, the vault uses a `raw/` prefix for source note
 (e.g. `raw/Daily/`, `raw/Topics/`). Existing wiki‑links like `[[Topics/Foo]]` must
 become `[[raw/Topics/Foo]]`. The setup will:
 
-1. **Backup** your vault (git commit or copy)
-2. **Dry‑run** — show how many `[[links]]` would be affected
-3. **Ask** for confirmation before modifying any file
-4. **Execute** — update all links whose target exists under `raw/`
-5. **Verify** — confirm zero broken links remain
+1. **Dry‑run** — show how many `[[links]]` would be affected
+2. **Ask** for confirmation before modifying any file
+3. **Execute** — update all links whose target exists under `raw/`
+4. **Verify** — confirm zero broken links remain
+
+To revert: `git checkout -- .` (undoes all changes if you don't like the result).
 ```
 
 ---
