@@ -129,3 +129,26 @@ via `merged-from` frontmatter. Use this to decide what to compile next.
 `/data/.kiwi/playbook.md` is a symlink to this file (`AGENTS.md`).
 KiwiFS serves it via MCP as `kiwi://playbook` for agents that connect
 via the Model Context Protocol (Claude Desktop, Cursor, etc.).
+
+## Known Issues
+
+### Tokenizer panic with consecutive whitespace (ONNX vector search)
+
+**Issue:** [sugarme/tokenizer#78](https://github.com/sugarme/tokenizer/issues/78) — "Panic: slice bounds out of range in Metaspace pretokenizer with consecutive whitespace"
+
+The `sugarme/tokenizer` v0.3.0 library panics when processing text with 50+
+consecutive whitespace characters (e.g. code listings, indented markdown).
+This crashes `kiwifs reindex --root /data --vector` with:
+
+```
+panic: runtime error: slice bounds out of range [957:956]
+github.com/sugarme/tokenizer/normalizer.(*NormalizedString).TransformRange(...)
+```
+
+**Impact:** Only affects ONNX semantic search (`reindex --vector`). FTS5
+(BM25) search is unaffected. Affects approximately 1.7% of text chunks
+with heavy indentation.
+
+**Workaround:** Collapse consecutive whitespace in source files before
+reindexing, or use Ollama as embedder (avoids the buggy tokenizer).
+The issue is still open in the upstream library.
