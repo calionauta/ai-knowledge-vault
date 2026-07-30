@@ -132,10 +132,13 @@ via the Model Context Protocol (Claude Desktop, Cursor, etc.).
 
 ## Known Issues
 
-### ONNX vector search crashes on 50+ consecutive spaces
+### ONNX vector search crashes during reindex
 
-When `provider = "onnx"` is configured, `kiwifs reindex --vector` panics on text
-with 50+ consecutive whitespace chars. This is a bug in
-[`sugarme/tokenizer` v0.3.0](https://github.com/sugarme/tokenizer/issues/78)
-(Metaspace pretokenizer, slice bounds error). Only affects ONNX reindex;
-FTS5 (BM25) works fine. Fix pending upstream.
+`kiwifs reindex --root /data --vector` panics with `slice bounds out of range`
+when the `sugarme/tokenizer` v0.3.0 Metaspace pretokenizer processes certain
+text patterns (confirmed triggers: 50+ consecutive spaces, mixed Unicode,
+very long lines). See:
+- [sugarme/tokenizer#78](https://github.com/sugarme/tokenizer/issues/78)
+- [sugarme/tokenizer#77](https://github.com/sugarme/tokenizer/issues/77)
+
+Only affects ONNX reindex. FTS5 (BM25) works fine. Fix pending upstream.
