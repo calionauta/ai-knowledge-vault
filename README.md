@@ -50,6 +50,16 @@ Start by asking me:
 4. What LLM provider do you use? (API key needed)
 5. Single user or team? (team = parallel agents via draft spaces)
 6. Telegram bot token? (optional)
+
+When migrating an existing vault, the vault uses a `raw/` prefix for source notes
+(e.g. `raw/Daily/`, `raw/Topics/`). Existing wiki‑links like `[[Topics/Foo]]` must
+become `[[raw/Topics/Foo]]`. The setup will:
+
+1. **Backup** your vault (git commit or copy)
+2. **Dry‑run** — show how many `[[links]]` would be affected
+3. **Ask** for confirmation before modifying any file
+4. **Execute** — update all links whose target exists under `raw/`
+5. **Verify** — confirm zero broken links remain
 ```
 
 ---
@@ -704,9 +714,9 @@ my-vault/
 ├── purpose.md              # Why the vault exists
 ├── schema.md               # Structural rules
 ├── AGENTS.md               # Agent instructions
-├── raw/                    # Source documents (immutable)
+├── raw/                    # Source documents (immutable) — NO notes at root
 │   ├── Daily/              # Daily notes YYYY-MM-DD.md
-│   ├── Topics/             # Reference topics [[Topics/name]]
+│   ├── Topics/             # Reference topics [[raw/Topics/name]]
 │   ├── People/             # People (classified by tags)
 │   ├── Projects/           # Projects (classified by tags)
 │   └── ...                 # Any categories
