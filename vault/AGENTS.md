@@ -145,6 +145,6 @@ very long lines). See:
   is in the tokenizer itself, not in KiwiFS code.
 
 The panic only kills the `reindex --vector` process. The KiwiFS server stays
-up and FTS5 (BM25) continues working. New or modified files are auto-indexed
-by the background vector indexer. If a file triggers the panic, that file is
-silently skipped — the server recovers.
+up and FTS5 (BM25) continues working. The server has a background auto-indexer
+that embeds files as they're written; if a file triggers the panic, it's
+silently skipped — no crash, no data loss. ONNX reindex is best-effort.
