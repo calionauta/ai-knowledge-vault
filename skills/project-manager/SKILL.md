@@ -35,11 +35,10 @@ It supports multiple backends via adapters. Configure your backend in:
 ~/.mercury/project-manager-config.yaml
 ```
 
-## CRITICAL: Docker volume permissions
+## CRITICAL: Adapter configuration
 
-The KiwiFS vault is inside a Docker container. NEVER run sed, echo >, or
-other shell file-writing commands against the vault filesystem.
-Use curl to the KiwiFS REST API (port 3333) or `docker exec` instead.
+Pick the active backend in `~/.mercury/project-manager-config.yaml` and use only the
+commands documented for that adapter. Never mix adapters' CLIs.
 
 Example config:
 ```yaml

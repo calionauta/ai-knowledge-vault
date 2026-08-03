@@ -1,10 +1,11 @@
 ---
 name: notes-search
 description: >
-  Search, read, and write notes in a KiwiFS markdown vault.
-  All notes go into Daily files with timestamped headings.
-  CRITICAL: Only report what commands return. Never fabricate data.
-version: 1.0.0
+  Search, read, and write notes in the octarine-notes vault (plain Markdown on
+  disk, git-versioned). All notes go into raw/Daily/YYYY-MM-DD.md with
+  timestamped headings. CRITICAL: only report what commands return. Never
+  fabricate data.
+version: 2.0.0
 intents:
   - search notes
   - find note
@@ -22,16 +23,22 @@ allowed-tools:
 
 # Notes Search Skill
 
+## Vault layout
+
+`VAULT=${VAULT:-$HOME/octarine-notes}` — a plain git repo, no external service.
+
+- `raw/Daily/YYYY-MM-DD.md` — daily notes (`## HHhMM - Title` sections)
+- `raw/` — other immutable source notes (topics, people, imports)
+- `wiki/` — compiled pages (read for retrieval; never hand-edit)
+
 ## CRITICAL RULES
 
-1. ALL notes go into `raw/Daily/YYYY-MM-DD.md`. NEVER save elsewhere.
-2. NEVER fabricate data. Only report what commands return.
-3. Timezone: configure TZ environment variable per user location.
-4. Use curl for KiwiFS API, never shell filesystem commands.
+1. Notes go into `raw/Daily/YYYY-MM-DD.md`. NEVER save elsewhere.
+2. NEVER modify existing `raw/` files. Only create today's daily or append to it.
+3. Never fabricate data — only report what commands return.
+4. Use plain filesystem tools (`printf`, `mkdir`, `cat`, `rg`); no external API.
 
-## Daily note format (MANDATORY)
-
-All notes use `raw/Daily/YYYY-MM-DD.md` with this structure:
+## Daily note format
 
 ```
 # YYYY-MM-DD
@@ -41,88 +48,37 @@ All notes use `raw/Daily/YYYY-MM-DD.md` with this structure:
 - Content point 2
 ```
 
-Time format: `HHhMM` (Brazilian standard, used in Portugal and France too).
-No colons in headings — avoids parser bugs. Examples: `09h15`, `14h30`.
+Time format `HHhMM` (Brazilian standard). No colons in headings.
 
-The `# YYYY-MM-DD` title line is only needed once per file (added automatically
-when creating a new daily). Appends just add `## HHhMM` sections.
-
-## How to save a note (CRITICAL: real newlines, not literal \n)
-
-Use `printf` with `--data-binary` (NOT `-d`). The `-d` flag converts `\n` to
-literal text, not actual line breaks.
+## Save a note
 
 ```bash
-DATE=$(TZ=$TIMEZONE date +%Y-%m-%d)
-TIME=$(TZ=$TIMEZONE date +%Hh%M)
-TITLE="Title derived from content"
-FILE="raw/Daily/${DATE}.md"
-
-EXISTS=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:3333/api/kiwi/file?path=${FILE}")
-
-if [ "$EXISTS" = "200" ]; then
-  curl -s -X POST "http://localhost:3333/api/kiwi/file/append?path=${FILE}" \
-    -H "X-Actor: agent:mercury" \
-    --data-binary "$(printf "\n## %s - %s\n- %s\n" "$TIME" "$TITLE" "content")"
+DATE=$(TZ=America/Sao_Paulo date +%Y-%m-%d)
+TIME=$(TZ=America/Sao_Paulo date +%Hh%M)
+TITLE="Short title derived from content"
+CONTENT="content"
+FILE="$VAULT/raw/Daily/$DATE.md"
+mkdir -p "$VAULT/raw/Daily"
+if [ -f "$FILE" ]; then
+  printf "\n## %s - %s\n- %s\n" "$TIME" "$TITLE" "$CONTENT" >> "$FILE"
 else
-  curl -s -X PUT "http://localhost:3333/api/kiwi/file?path=${FILE}" \
-    -H "X-Actor: agent:mercury" \
-    --data-binary "$(printf "# %s\n\n## %s - %s\n- %s\n" "$DATE" "$TIME" "$TITLE" "content")"
+  printf "# %s\n\n## %s - %s\n- %s\n" "$DATE" "$TIME" "$TITLE" "$CONTENT" > "$FILE"
 fi
 ```
 
-## Save from URL (Link → Daily Note)
+## Save from URL
 
-When the user sends a URL to be saved:
-
-1. Use `fetch_url` to get the page content
-2. Extract the **page title** and **meta description**
-3. Save in the daily note with this format:
-
-```
-## 14h30 - [Page Title](url)
-    Description / summary of the page
-```
-
-**Do NOT** add H1/H2 headings from the page. Just title + description.
-
-```bash
-DATE=$(TZ=$TIMEZONE date +%Y-%m-%d)
-TIME=$(TZ=$TIMEZONE date +%Hh%M)
-FILE="raw/Daily/${DATE}.md"
-
-# Build the entry with real newlines via printf
-ENTRY="$(printf "\n## %s - [%s](%s)\n    %s\n" "$TIME" "$TITLE" "$URL" "$DESCRIPTION")"
-TITLE_AND_DATE="$(printf "# %s\n\n## %s - [%s](%s)\n    %s\n" "$DATE" "$TIME" "$TITLE" "$URL" "$DESCRIPTION")"
-
-EXISTS=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:3333/api/kiwi/file?path=${FILE}")
-if [ "$EXISTS" = "200" ]; then
-  curl -s -X POST "http://localhost:3333/api/kiwi/file/append?path=${FILE}" \
-    -H "X-Actor: agent:mercury" --data-binary "$ENTRY"
-else
-  curl -s -X PUT "http://localhost:3333/api/kiwi/file?path=${FILE}" \
-    -H "X-Actor: agent:mercury" --data-binary "$TITLE_AND_DATE"
-fi
-```
+1. Use `fetch_url` to get the page content.
+2. Extract the page title and meta description.
+3. Append to today's daily as `## HH:MM - [Page Title](url)` with a description line.
+   Do NOT add the page's own headings.
 
 ## Search
 
-Recent changes (last N days):
 ```bash
-docker exec kiwifs git -C /data log --oneline --since="3 days ago" --name-only
+rg -l -i "<query>" "$VAULT/raw" "$VAULT/wiki"        # full text
+rg -i -l "<query>" "$VAULT/raw/Daily"                # daily notes
+git -C "$VAULT" log --oneline --since="3 days ago"   # recent changes
 ```
 
-Full-text search:
-```bash
-curl -s "http://localhost:3333/api/kiwi/search?q=<query>&limit=10"
-```
-
-Semantic search:
-```bash
-curl -s -X POST "http://localhost:3333/api/kiwi/search/semantic" -d "{\"query\":\"<query>\",\"limit\":5}"
-```
-
-Read specific file:
-```bash
-curl -s "http://localhost:3333/api/kiwi/file?path=<path>"
-```
+For retrieval, prefer compiled pages: read `wiki/index.md`, then follow `[[wikilinks]]`.

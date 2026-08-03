@@ -1,150 +1,91 @@
-# AGENTS.md — Notes Vault
+# AGENTS.md — Knowledge Vault (octarine-notes)
 
-This vault follows the [LLM Wiki](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f)
-pattern: raw sources are compiled into a structured, interlinked wiki.
-See `purpose.md` for directional intent and `schema.md` for structural rules.
+This is the single contract for the `octarine-notes` knowledge base. It is read by
+**OpenKB** (the server-side compiler) at runtime and by any **agent** (OpenKnowledge on the
+desktop, Mercury, opencode, Claude Code) that operates on the vault. Keep it in English;
+compiled wiki content stays in Portuguese (`language: pt` in OpenKB config).
 
-Inspired by [nashsu/llm_wiki](https://github.com/nashsu/llm_wiki),
-[SamurAIGPT/llm-wiki-agent](https://github.com/SamurAIGPT/llm-wiki-agent),
-and [OpenKnowledge](https://openknowledge.ai).
+The vault follows the [LLM Wiki](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f)
+pattern: immutable sources are compiled into an interlinked wiki that compounds over time.
 
-## Vault Structure
+## Structure
 
 ```
-raw/              # Source documents (immutable — never modify)
-  Daily/          # ONE file per day: YYYY-MM-DD.md
-                    Format:
-                      # YYYY-MM-DD
-                      ## 09h15 - Title
-                      - content with [[wikilinks]]
-  Topics/         # Reference topics — [[Topics/name]] for cross-refs
-  People/         # People (classified by frontmatter tags)
-  Projects/       # Projects (classified by frontmatter tags)
-  any/            # Any category folders
-wiki/             # Compiled knowledge (agent owns this layer)
-  index.md        # Page catalog — update on every change
-  log.md          # Append-only chronological record
-  overview.md     # Living synthesis across sources
-  sources/        # Source summaries
-  entities/       # People, companies, products (TitleCase.md)
-  concepts/       # Ideas, frameworks, methods (TitleCase.md)
-  syntheses/      # Saved query answers
-  drafts/         # Provisional research (status: provisional)
-  curated/        # Canonical articles (status: canonical)
+octarine-notes/
+├── raw/                 # IMMUTABLE input. The ONLY place notes enter. Never edit existing files.
+└── wiki/                 # The single knowledge base — full pipeline (ingest -> consolidated)
+    ├── AGENTS.md         # this contract
+    ├── index.md · log.md # maintained by OpenKB
+    ├── sources/          # normalized ingest of each raw doc        (OpenKB)  ← INGEST
+    ├── summaries/        # per-document summary                     (OpenKB)  ← COMPILE
+    ├── concepts/         # cross-document synthesis                 (OpenKB)  ← SYNTHESIS
+    ├── entities/         # people/orgs/places/products              (OpenKB)
+    ├── explorations/     # saved `openkb query` answers             (OpenKB)
+    ├── reports/          # lint reports                             (OpenKB)
+    ├── research/         # agent-authored provisional synthesis     (agent)   status: draft
+    └── articles/         # agent-authored canonical knowledge       (agent)   status: final
 ```
 
-## Key Rules
+## Layer ownership — do not cross
 
-1. **Raw is immutable.** Never modify files in `raw/`. Only create new ones.
-2. **All notes go into `raw/Daily/YYYY-MM-DD.md`** with `## 09h15 - Title`.
-3. **Wiki pages can be overwritten** — they hold the current best understanding.
-4. **Contradictions are flagged**, never silently resolved.
-5. **Classification is by frontmatter tags**, not by folder structure.
-6. **Use `[[wikilinks]]`** to connect related pages.
-7. ** Read `schema.md` for full workflow instructions** (ingest, research, consolidate, health, lint).
+| Path | Owner | Role | Instruction |
+|------|-------|------|-------------|
+| `raw/` | human | immutable input | never edit; only add new files |
+| `wiki/sources|summaries|concepts|entities` + `index.md`/`log.md` | **OpenKB** | compile pipeline | generated; do not hand-edit |
+| `wiki/research/` | **agent** | provisional synthesis (status: draft, cites) | OpenKB must NOT write here; link concepts to it |
+| `wiki/articles/` | **agent** | canonical (status: final, supersedes) | OpenKB must NOT write here; link concepts to it |
 
-## Wiki Links (instead of tags)
+The OpenKB compiler owns exactly `sources/ summaries/ concepts/ entities/ index.md log.md`
+(plus `explorations/ reports/`). It must never create/edit/delete under `research/` or
+`articles/`. The curator agent writes ONLY `research/` and `articles/` and must not hand-edit
+OpenKB-owned pages (a future `openkb recompile` overwrites them).
 
-Use `[[Topics/name]]` for ALL cross-references. DO NOT use `#tags`.
+## Frontmatter
 
-Wikilinks are superior to hashtags because:
-- **Bidirectional** — KiwiFS shows backlinks on every page
-- **Graph-enabled** — every link creates an edge in the knowledge graph
-- **Contextual** — links live in sentences, showing WHY they exist
-- **Portable** — works in any markdown viewer, no plugin needed
-- **Nestable** — `[[Topics/pai/filho]]` for hierarchical grouping
+Generated pages carry OKF-style YAML frontmatter:
+- Source/summary: `type`, `description`, `sources`, `full_text` (long docs add `doc_type: pageindex`).
+- Concept: `type: Concept`, `description`, `sources: [...]`.
+- Entity: `type` subtype (`Person`/`Organization`/`Place`/`Product`/`Work`/`Event`), `description`, `sources`.
+- Curated pages: `type: Research|Article`, `status: draft|final`, `description`, `sources`, optional `supersedes`.
 
-Examples:
-```markdown
-- [[Topics/ProjectManagement]] — reference topic
-- [[Topics/terapia/abordagens]] — nested topic
-- [[People/Fulano]] — person profile
-- [[Projects/Apollo]] — project
-- [[raw/Daily/2026-07-28]] — link to a specific day
-```
+## Wikilinks
 
-Orphan topics (pages referenced but not yet created) become page creation signals.
+Obsidian-compatible `[[wikilink]]`, resolved relative to `wiki/`:
+`[[concepts/slug]]`, `[[summaries/slug]]`, `[[entities/slug]]`, `[[sources/slug]]`,
+`[[research/slug]]`, `[[articles/slug]]`. Piped aliases allowed (`[[entities/name|Label]]`).
+Keep links resolved; run `openkb lint` (`--fix`) to strip stale ones.
 
-## Frontmatter Schema
+## Workflows
 
-```yaml
----
-title: "Page Title"
-type: daily | topic | person | project | source | entity | concept | synthesis | draft | article
-tags: []       # Optional — use wikilinks for navigation, tags for metadata only
-status: draft | active | archived | provisional | canonical
-last_updated: YYYY-MM-DD
----
-```
+### Ingest (new note)
+Drop the file into `raw/` (any supported format: md, pdf, docx, html, txt, url). Push to origin.
+OpenKB picks it up on the next scheduled compile.
 
-Tags should be used sparingly and only for cross-cutting metadata
-(like `confidence: low`). Navigation is done via `[[wikilinks]]`.
+### Compile (server, scheduled by Mercury)
+1. `git pull --rebase` (bring new notes + agent edits).
+2. `openkb --kb-dir <repo> add raw/` (incremental; skips unchanged via hashes).
+3. `openkb --kb-dir <repo> lint`.
+4. `git add wiki/ raw/ && git pull --rebase && git commit && git push`.
 
-## Search
+### Research (desktop agent, on demand)
+Read `wiki/index.md` + 1-2 `wiki/concepts/*.md`, follow `[[wikilinks]]`. Synthesize across 2+
+sources into `wiki/research/<slug>.md` (`status: draft`), citing `[[concepts/...]]` /
+`[[summaries/...]]`. Build on top of compiled pages — do not re-summarize them.
 
-KiwiFS API at `http://localhost:3333`:
+### Consolidate (human decision)
+Promote `wiki/research/<slug>.md` -> `wiki/articles/<slug>.md` (`status: final`), add
+`supersedes:` chain. Push.
 
-```bash
-# Full-text search
-curl -s "http://localhost:3333/api/kiwi/search?q=<query>&limit=10"
+### Health / lint
+`openkb lint` for structural checks. `coverage.sh` counts raw vs `wiki/sources`.
 
-# Semantic search
-curl -s -X POST "http://localhost:3333/api/kiwi/search/semantic" -d '{"query":"<query>","limit":5}'
+## Git sync
+- Server -> origin: Mercury daily (pull -> compile -> push).
+- Desktop -> origin: agent writes `wiki/research/` + `wiki/articles/`, pushes.
+- Always `git pull --rebase` before push (both sides write the same repo).
+- `.openkb/` and `.env` are gitignored (state + secrets).
 
-# DQL query (structured over frontmatter)
-curl -s "http://localhost:3333/api/kiwi/query?q=TABLE+title+FROM+%22raw/People%22+WHERE+tags+CONTAINS+%22client%22"
-
-# Knowledge graph (all connections)
-curl -s "http://localhost:3333/api/kiwi/graph"
-
-# Graph analytics (PageRank, communities, orphans)
-curl -s "http://localhost:3333/api/kiwi/graph/analytics?limit=20"
-
-# Backlinks for a page
-curl -s "http://localhost:3333/api/kiwi/backlinks?path=Topics/ProjectManagement"
-```
-
-## Git Sync
-
-```bash
-git push origin main
-```
-
-KiwiFS auto-commits every write. Push periodically to GitHub.
-
-## Memory Report (consolidation tracking)
-
-KiwiFS provides a memory report that shows which raw notes have not yet
-been compiled into wiki pages. Run to check compilation coverage:
-
-```bash
-curl -s "http://localhost:3333/api/kiwi/memory/report?episodes_prefix=raw/"
-```
-
-Returns a list of files in `raw/` not yet referenced by any `wiki/` page
-via `merged-from` frontmatter. Use this to decide what to compile next.
-
-## KiwiFS Agent Playbook
-
-`/data/.kiwi/playbook.md` is a symlink to this file (`AGENTS.md`).
-KiwiFS serves it via MCP as `kiwi://playbook` for agents that connect
-via the Model Context Protocol (Claude Desktop, Cursor, etc.).
-
-## Known Issues
-
-### ONNX vector search crashes during reindex
-
-`kiwifs reindex --root /data --vector` panics with `slice bounds out of range`
-when the `sugarme/tokenizer` v0.3.0 Metaspace pretokenizer processes certain
-text patterns (confirmed triggers: 50+ consecutive spaces, mixed Unicode,
-very long lines). See:
-- [sugarme/tokenizer#78](https://github.com/sugarme/tokenizer/issues/78)
-- [sugarme/tokenizer#77](https://github.com/sugarme/tokenizer/issues/77)
-- [kiwifs#294](https://github.com/kiwifs/kiwifs/issues/294) — partial fix:
-  `recover()` added for malformed JSON, but the Metaspace slice-bounds bug
-  is in the tokenizer itself, not in KiwiFS code.
-
-The panic only kills the `reindex --vector` process. The KiwiFS server stays
-up and FTS5 (BM25) continues working. The server has a background auto-indexer
-that embeds files as they're written; if a file triggers the panic, it's
-silently skipped — no crash, no data loss. ONNX reindex is best-effort.
+## Provider
+OpenKB uses LiteLLM. Provider env in `<root>/.env` (`OPENAI_API_KEY`, `OPENAI_BASE_URL`),
+gitignored, chmod 600. `.openkb/config.yaml`: `model: openai/MiniMax-M3`, `language: pt`,
+`pageindex_threshold: 20`.

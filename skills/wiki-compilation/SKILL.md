@@ -1,517 +1,104 @@
 ---
 name: wiki-compilation
 description: >
-  Compile raw notes into a structured wiki layer.
-  Reads sources, extracts entities and concepts, detects contradictions,
-  maintains index, overview, and log. Tracks compilation via merged-from
-  frontmatter so KiwiFS memory reports show coverage.
-  Follows the LLM Wiki Agent pattern.
-version: 3.0.0
+  Compile the immutable raw/ notes into the wiki/ knowledge base using the
+  OpenKB CLI on the server, and coordinate the agent-curated research/ and
+  articles/ layers from the desktop (OpenKnowledge). Ingest = drop files into
+  raw/; compile = `openkb add`; curation = write wiki/research/ and
+  wiki/articles/. Never modify raw/.
+version: 4.0.0
 intents:
   - compile wiki
   - ingest notes
   - recompile changed notes
   - update wiki
-  - extract entities
-  - detect contradictions
   - run lint
   - check coverage
-  - check health
-  - health report
-  - list orphans
-  - orphan pages
-  - list broken links
-  - broken wikilinks
+  - openkb
+  - wiki status
+  - research synthesis
+  - consolidate article
 allowed-tools:
   - exec
   - bash
 ---
 
-# Wiki Compilation Skill
+# Wiki Compilation (OpenKB + OpenKnowledge)
 
-## Path resolution
+## Where things run and who owns what
 
-Scripts live alongside this SKILL.md in the `references/` subdirectory.
+| Layer | Runs on | Owner | What it is |
+|-------|---------|-------|------------|
+| `raw/` | server + desktop | human | immutable input; the ONLY place notes enter |
+| `wiki/{sources,summaries,concepts,entities}` + `index.md`/`log.md` | **server** | **OpenKB CLI** | automatic compile pipeline (ingest -> synthesis) |
+| `wiki/research/` (status: draft) | **desktop** | **agent (OpenKnowledge)** | provisional, cited synthesis |
+| `wiki/articles/` (status: final) | **desktop** | **agent** | canonical knowledge, `supersedes` chain |
+| `.openkb/` | server | OpenKB state | never committed |
 
-The `SKILL_DIR` variable auto-detects where scripts are, with fallbacks:
-1. Mercury-managed path: `${MERCURY_INSTALL:-$HOME/.mercury}/skills/wiki-compilation/`
-2. Git repo path (common dev setups): `$HOME/Development/ai-knowledge-vault/skills/wiki-compilation/`
-3. Current directory's parent
-
-```bash
-# Auto-detect skill directory
-if [ -d "${MERCURY_INSTALL:-$HOME/.mercury}/skills/wiki-compilation/references" ]; then
-  SKILL_DIR="${MERCURY_INSTALL:-$HOME/.mercury}/skills/wiki-compilation"
-elif [ -d "$HOME/Development/ai-knowledge-vault/skills/wiki-compilation/references" ]; then
-  SKILL_DIR="$HOME/Development/ai-knowledge-vault/skills/wiki-compilation"
-else
-  # Fallback: assume scripts are next to this SKILL.md
-  SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-.}")/.." 2>/dev/null && pwd)/wiki-compilation"
-fi
-```
-
-**Setup:** Copy the `references/` folder to the Mercury skill directory:
-```bash
-# From the repo, after cloning:
-mkdir -p ~/.mercury/skills/wiki-compilation
-cp -r skills/wiki-compilation/references ~/.mercury/skills/wiki-compilation/
-```
-
-All deterministic operations (finding files, writing pages, checking coverage,
-detecting changes, linting) are delegated to these scripts. The LLM focuses on
-what it does best: extracting meaning, structuring knowledge, and detecting
-contradictions.
-
-Scripts available in `$SKILL_DIR/references/`:
-
-| Script | Purpose | Used in |
-|--------|---------|---------|
-| `find-unmerged.sh` | List raw files needing compilation | Ingest Step 1 |
-| `write-page.sh` | Write a wiki page via KiwiFS API | Ingest Step 3 |
-| `update-meta.sh` | Rebuild index, append to log | Ingest Step 4 |
-| `check-coverage.sh` | Print KiwiFS memory report | Ingest Step 5 |
-| `coverage-report.sh` | Portable coverage (no frontmatter needed) | Check coverage |
-| `detect-changes.sh` | Find raw files with changed content | Recompile |
-| `lint.sh` | Check orphan pages, missing metadata | Lint |
-| `health-report.sh` | Analyze graph health: orphans, hub stubs, broken links, communities | Weekly / On demand |
+This is ONE pipeline, not two: OpenKB does ingest+compile; the agent does
+research+consolidate on top of the compiled pages.
 
 ## CRITICAL RULES
 
-1. NEVER modify files in `raw/`. Read only.
-2. Wiki pages can be created/updated. Source pages are append-only by default — updates are allowed only during explicit recompilation (detect-changes.sh found a checksum mismatch).
-3. Flag contradictions. Never silently resolve them.
-4. Update index.md on every change via `$SKILL_DIR/references/update-meta.sh --rebuild-index`.
-5. **Every wiki page MUST include `merged-from`** in frontmatter — this records which raw files were used, enabling provenance tracking.
-6. **Before creating a source page, run `find-unmerged.sh` to check if one already exists.**
-7. Every wiki page you write must ALSO be registered via `update-meta.sh --log "<entry>"`.
+1. NEVER modify files in `raw/`. Read only. New notes are added; existing ones are never edited.
+2. The OpenKB compiler owns `sources/ summaries/ concepts/ entities/ index.md log.md`.
+   It must NEVER write to `research/` or `articles/`.
+3. The curator agent writes ONLY `research/` and `articles/`; it must not hand-edit
+   OpenKB-owned pages (a future `openkb recompile` would overwrite them).
+4. Flag contradictions. Never silently resolve them.
+5. Always `git pull --rebase` before pushing; the server and desktop push to the same repo.
+6. Wiki page text: Portuguese (OpenKB `language: pt`). Skill files and comments: English.
 
-## Context
-
-The vault has two top-level directories:
-
-- `raw/` — source notes (immutable, human-written)
-- `wiki/` — compiled knowledge (agent-maintained)
-
-### Wiki structure
-
-```
-wiki/
-  index.md       — Catalog of all pages
-  log.md         — Append-only chronological record
-  overview.md    — Living synthesis across sources
-  sources/       — One summary per source document
-  entities/      — People, companies, projects, products
-  concepts/      — Ideas, frameworks, methods
-  syntheses/     — Saved query answers
-```
-
-### How compilation tracking works
-
-Wiki pages track which raw files they came from via two mechanisms:
-
-**A) `source_file` + slug** — each source page has `source_file: raw/...` in frontmatter.
-This is how we know which raw produced which wiki page.
-
-**B) `merged-from`** — records the raw file path (or slug) for provenance tracking.
-KiwiFS natively supports `merged-from` for its memory report, but we also provide
-a **portable coverage report** that doesn't depend on any KiwiFS frontmatter:
-```bash
-bash $SKILL_DIR/references/coverage-report.sh
-```
-This counts raw `.md` files vs `wiki/sources/` entries to show real coverage.
-
-**C) `derived-from`** — automatically set by KiwiFS from the `X-Provenance` header.
-Records which agent run produced the file.
-
-**Note:** Raw files do NOT need `memory_kind: episodic` or `episode_id`.
-The coverage-report.sh works by simple file counting, not KiwiFS-specific frontmatter.
-
-### Page frontmatter
-
-**Source page** — stores the SHA256 checksum for change detection:
-```yaml
----
-title: "Source Title"
-type: source
-tags: []
-date: YYYY-MM-DD
-source_file: raw/...
-last_updated: YYYY-MM-DD
-source_checksum: sha256-abc123...
-merged-from:
-  - type: episode
-    id: <slug>
----
-```
-
-**Entity / Concept / Synthesis page:**
-```yaml
----
-title: "Page Name"
-type: entity | concept | synthesis
-tags: []
-sources: [source-slug]
-last_updated: YYYY-MM-DD
-merged-from:
-  - type: episode
-    id: <slug>
----
-```
-
-> `merged-from` lists which raw files were used to create this page.
-> The `id` should match the raw file's slug (e.g., `daily-2026-07-28`).
-> `source_checksum` is the SHA256 hash of the raw file content at compile time.
-> On subsequent runs, the skill re-hashes and compares — if different, the note was edited and needs recompilation.
-> This is more reliable than timestamps because it detects actual content changes, not file saves or touches.
-
-## Workflow: Ingest (incremental)
-
-Run daily (scheduled at 2 AM) or on demand.
-
-### Step 1 — Find what needs compilation
+## Reference scripts ($SKILL_DIR/references/)
 
 ```bash
-bash $SKILL_DIR/references/find-unmerged.sh --limit 10 --json
+# Path resolution — scripts live next to this SKILL.md
+SKILL_DIR="${SKILL_DIR:-$HOME/.mercury/skills/wiki-compilation}"
 ```
 
-Returns JSON lines like:
-```json
-{"path":"raw/Daily/2026-07-28.md","slug":"daily-2026-07-28","checksum":"abc123..."}
-```
-
-For each returned file, the file is **new** (no wiki source exists yet).
-
-**Why SHA256 instead of timestamps?** KiwiFS stores files as content-addressed blobs — there is no git history inside the container. A content checksum is deterministic and portable: it catches actual edits and ignores false positives from file saves or touches.
-
-### Step 2 — Compile each file
-
-For each file returned by `find-unmerged.sh`:
-
-a. Read the raw note:
-   ```bash
-   curl -s "http://localhost:3333/api/kiwi/file?path=<raw_path>"
-   ```
-
-b. LLM extracts from the content:
-   - **Summary** → `wiki/sources/<slug>.md`
-   - **Entities** → `wiki/entities/<Name>.md` (create or update)
-   - **Concepts** → `wiki/concepts/<Name>.md` (create or update)
-   - **Contradictions** with existing wiki content (read existing pages via curl first)
-   - **Overview revision** → only if the changes affect the overall synthesis
-
-c. Every wiki page MUST include `merged-from` with the raw file's slug:
-   ```yaml
-   merged-from:
-     - type: episode
-       id: <slug>  # e.g., "daily-2026-07-28"
-   ```
-
-   Source pages MUST also include:
-   ```yaml
-   source_checksum: sha256-<hash_of_raw_content>
-   ```
-
-### Step 3 — Write pages
-
-Use the write-page script — it handles X-Actor header and error checking:
-
-```bash
-bash $SKILL_DIR/references/write-page.sh "wiki/sources/${SLUG}.md" "<full markdown content>"
-bash $SKILL_DIR/references/write-page.sh "wiki/entities/${NAME}.md" "<entity content>"
-bash $SKILL_DIR/references/write-page.sh "wiki/concepts/${NAME}.md" "<concept content>"
-```
-
-### Step 4 — Update index and log
-
-```bash
-# Rebuild index (reads all wiki files via API)
-bash $SKILL_DIR/references/update-meta.sh --rebuild-index
-
-# Append to log
-bash $SKILL_DIR/references/update-meta.sh --log "## [YYYY-MM-DD] ingest | <Title> | merged-from: <raw_path> | checksum: sha256-<hash>\n"
-```
-
-### Step 5 — Check memory coverage
-
-After each batch, verify the memory report:
-
-```bash
-bash $SKILL_DIR/references/check-coverage.sh
-```
-
-Target output:
-```
-Coverage: 1%
-Merged refs: 10
-Episodic files: 3771
-```
-
-> **Target:** After each batch, `coverage_pct` should increase. After a full first-time compilation, it should approach 100%.
-> If it stays at 0%, check that `merged-from` was written correctly in the frontmatter
-> and that the memory report uses the same `episodes_prefix` (must be `raw/`).
-
-### Source page format
-
-```markdown
----
-title: "Source Title"
-type: source
-tags: []
-date: YYYY-MM-DD
-source_file: raw/...
-last_updated: YYYY-MM-DD
-source_checksum: sha256-<hash>
-merged-from:
-  - type: episode
-    id: <slug>
----
-
-## Summary
-2-4 sentence summary.
-
-## Key Claims
-- Claim 1
-- Claim 2
-
-## Key Quotes
-> "Quote" — context
-
-## Connections
-- [[EntityName]] — relation
-- [[ConceptName]] — relation
-
-## Contradictions
-- Contradicts [[OtherPage]] on: ...
-```
-
-### Entity page format
-
-```markdown
----
-title: "Entity Name"
-type: entity
-tags: []
-sources: [slug1]
-last_updated: YYYY-MM-DD
-merged-from:
-  - type: episode
-    id: <slug>
----
-
-## Summary
-Brief description.
-
-## Role / Context
-How this entity appears across sources.
-
-## Relationships
-- [[RelatedEntity]] — relationship
-- [[ConceptName]] — how they connect
-```
-
-### Concept page format
-
-```markdown
----
-title: "Concept Name"
-type: concept
-tags: []
-sources: [slug1]
-last_updated: YYYY-MM-DD
-merged-from:
-  - type: episode
-    id: <slug>
----
-
-## Summary
-Definition and key idea.
-
-## Key Points
-- Point 1
-- Point 2
-
-## Related
-- [[EntityName]]
-- [[RelatedConcept]]
-```
-
-## Workflow: Recompile changed notes
-
-When a raw file is edited, its content changes → the SHA256 checksum differs → the skill detects it automatically.
-
-```bash
-bash $SKILL_DIR/references/detect-changes.sh
-```
-
-Returns lines like:
-```
-CHANGED: raw/Daily/2026-07-28.md (sha256: abc123... → def456...)
-```
-
-For each changed file:
-
-1. Read the updated raw file: `curl -s "http://localhost:3333/api/kiwi/file?path=<raw_path>"`
-2. Re-extract entities, concepts, and update the summary via LLM
-3. **Update** existing wiki pages (don't create duplicates) — use `write-page.sh` on the same path
-4. Update `last_updated` and `source_checksum` in frontmatter
-5. Keep the same `merged-from` entries (add new ones if the raw file spawned new entities/concepts)
-6. Update `wiki/overview.md` if the changes affect it
-7. Log the recompilation: `bash $SKILL_DIR/references/update-meta.sh --log "## [YYYY-MM-DD] recompile | <Title> | checksum: sha256-<hash>\n"`
-
-## Workflow: Lint
-
-Run weekly.
-
-```bash
-bash $SKILL_DIR/references/lint.sh
-```
-
-Checks performed:
-1. **Orphan sources** — source pages whose `source_file` no longer exists in raw/
-2. **Missing source_checksum** — source pages without a checksum (legacy data)
-3. **Missing merged-from** — wiki pages without `merged-from` in frontmatter
-
-Additionally, flag stale pages (not updated in 30+ days) by checking `last_updated` dates.
-
-Report findings — do not auto-fix without confirmation.
-
-## Workflow: Health Report
-
-**When the user asks about wiki health, always run the health report first.**
-
-Run weekly or on demand to analyze the wiki's graph health.
-No LLM cost — all checks are deterministic.
-
-```bash
-bash $SKILL_DIR/references/health-report.sh
-```
-
-Checks performed:
-1. **Orphan wiki pages** — wiki pages with zero inbound `[[wikilinks]]` (no one links to them)
-2. **Hub stubs** — pages with many outbound links but likely thin content
-3. **Broken wikilinks** — edges pointing to pages that don't exist in the graph
-4. **Community clusters** — isolated knowledge communities detected by graph analytics
-
-Also accepts:
-- `--json` — machine-readable JSON (all items, no limit)
-- `--orphans` — show only orphan wiki pages (skips hub stubs, broken links, communities)
-- `--limit N` — show up to N items per category (default: 15)
-
-**When the user asks about orphans or broken links, run the health report with the matching flag.**
-
-Examples:
-```bash
-# Full health report
-bash $SKILL_DIR/references/health-report.sh
-
-# JSON for machine parsing
-bash $SKILL_DIR/references/health-report.sh --json
-
-# Only orphan pages
-bash $SKILL_DIR/references/health-report.sh --orphans
-
-# Show up to 50 broken links
-bash $SKILL_DIR/references/health-report.sh --limit 50
-
-# Only orphans, show all 7
-bash $SKILL_DIR/references/health-report.sh --orphans --limit 100
-```
-
-**Interpreting the output:**
-
-| Check "fail" | What it means | Suggested action |
-|---|---|---|
-| Many orphan wiki pages | Content exists but isn't linked | Add `[[wikilinks]]` from other pages |
-| Hub stubs | Page has many links but may lack depth | Read the page, expand content if needed |
-| Broken wikilinks | `[[Link]]` points to non-existent page | Either create the page or fix the link |
-| Many communities (>3) | Knowledge is fragmented | Look for bridge topics to connect clusters |
-
-Report findings — do not auto-fix without confirmation.
-
-Can be scheduled via Mercury:
-```yaml
-# ~/.mercury/schedules.yaml
-tasks:
-  - name: wiki-health
-    description: Run weekly wiki health check
-    cron: "0 6 * * 1"  # Every Monday at 6 AM
-    prompt: "Run the wiki health report and report findings."
-    skillName: wiki-compilation
-```
-
-## Workflow: Query
-
-When the user asks a question about the notes:
-
-1. Search the wiki:
-   ```bash
-   curl -s "http://localhost:3333/api/kiwi/search?q=<query>&limit=10"
-   curl -s -X POST "http://localhost:3333/api/kiwi/search/semantic" -d "{\"query\":\"<query>\",\"limit\":5}"
-   ```
-
-2. Read relevant wiki pages — note their `merged-from` to show provenance.
-
-3. Synthesize answer with `[[PageName]]` citations and mention which raw sources were used.
-
-4. Ask user if they want the answer saved as `wiki/syntheses/<slug>.md`. All such pages MUST include `merged-from` in frontmatter.
-
-All read operations (search, file reads) don't need special headers. Only writes need `X-Actor: agent:mercury` (the write-page.sh script handles this automatically).
-
-## Workflow: Check coverage
-
-Run this to verify compilation completeness.
-
-**Portable coverage (recommended):** counts raw files vs wiki sources —
-works without any KiwiFS-specific frontmatter:
-```bash
-bash $SKILL_DIR/references/coverage-report.sh
-```
-
-**KiwiFS memory report** (requires `merged-from` on wiki pages):
-```bash
-bash $SKILL_DIR/references/check-coverage.sh
-```
-
-**Interpreting coverage-report.sh output:**
-
-| Coverage | Meaning |
-|----------|---------|
-| 0% | No `wiki/sources/` pages exist |
-| 1-99% | Partial — some files still need compilation |
-| 100% | All raw files have corresponding wiki sources |
-
-## Batch ingestion (first-time compilation)
-
-For an existing vault with many notes (3,771+ files):
-
-1. Run `find-unmerged.sh` in a loop, processing one batch per execution:
-   ```bash
-   # Each run finds the next 10 unmerged files
-   bash $SKILL_DIR/references/find-unmerged.sh --limit 10 --json
-   ```
-
-2. For each batch of 10:
-   - Process each file through Steps 2-4 (compile via LLM, write pages, update meta)
-   - Run lint after every 50 sources: `bash $SKILL_DIR/references/lint.sh`
-   - **Verify coverage** after each batch: `bash $SKILL_DIR/references/check-coverage.sh`
-
-3. Full compilation may take multiple sessions (~378 batches for 3,771 files at 10/batch).
-   Resume by re-running `find-unmerged.sh` — it automatically skips already-compiled files.
-
-## Daily ingestion schedule (10 notes/day)
-
-For ongoing maintenance, process a small batch daily:
-
-```bash
-# Run by the scheduled prompt at 2 AM
-bash $SKILL_DIR/references/find-unmerged.sh --limit 10 --json
-```
-
-Then process the results through Steps 2-4.
-
-The `find-unmerged.sh` script uses the KiwiFS memory report API to find files
-that lack a `wiki/sources/<slug>.md` page. It always picks files in the order
-returned by the API, so each run progresses through the unmerged list.
-
-Over time, as files are compiled and `merged-from` is written, the memory report's
-`coverage_pct` rises and the number of unmerged files shrinks.
+| Script | Purpose |
+|--------|---------|
+| `sync.sh` | `git pull --rebase` — bring new raw notes and agent edits |
+| `compile.sh` | `openkb add raw/` (incremental) + `openkb lint` + optional commit/push |
+| `coverage.sh` | count raw files vs `wiki/sources` (no external API) |
+
+## Workflow: daily compile (server, scheduled)
+
+1. `bash "$SKILL_DIR/references/sync.sh"` — pull new notes from origin.
+2. `bash "$SKILL_DIR/references/compile.sh" --commit` — compile + lint + push wiki.
+3. `bash "$SKILL_DIR/references/coverage.sh"` — report coverage.
+4. Notify via Telegram with counts and any `openkb lint` warnings.
+
+`openkb add raw/` is incremental: it skips unchanged files via
+`.openkb/hashes.json`, so a daily run only compiles new/changed notes.
+
+## Workflow: research (desktop agent, on demand)
+
+1. Retrieve: read `wiki/index.md`, then 1-2 `wiki/concepts/*.md`; follow `[[wikilinks]]`.
+   Prefer reading compiled pages over `openkb query` (cheaper, stays in context).
+2. Synthesize across 2+ sources -> write `wiki/research/<slug>.md`
+   (`type: Research`, `status: draft`, `sources:`, cited body). Build ON TOP of the
+   compiled pages — cite `[[concepts/...]]` / `[[summaries/...]]` instead of re-summarizing.
+3. git add/commit/push (`pull --rebase` first).
+
+## Workflow: consolidate (human decision)
+
+1. When a position becomes canonical, promote it:
+   `git mv wiki/research/<slug>.md wiki/articles/<slug>.md`.
+2. Set `status: final` and add `supersedes:` pointing at the draft/prior article.
+3. git add/commit/push.
+
+## Page conventions (see also wiki/AGENTS.md)
+
+- OpenKB-generated pages carry OKF frontmatter: `type`, `description`, `sources`
+  (concepts/entities), `doc_type`/`full_text` (sources).
+- Curated pages: `type: Research|Article`, `status: draft|final`, `sources`, `supersedes`.
+- Wikilinks resolve relative to `wiki/`: `[[concepts/slug]]`, `[[summaries/slug]]`,
+  `[[entities/slug]]`, `[[research/slug]]`, `[[articles/slug]]`. Piped aliases allowed.
+
+## Provider
+
+OpenKB uses LiteLLM. Provider env lives in `<KB_DIR>/.env`
+(`OPENAI_API_KEY` + `OPENAI_BASE_URL`, gitignored, chmod 600).
+Config: `.openkb/config.yaml` -> `model: openai/MiniMax-M3`, `language: pt`,
+`pageindex_threshold: 20`.

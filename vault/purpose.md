@@ -1,10 +1,10 @@
-# Purpose — Notes Vault
+# Purpose — Knowledge Vault
 
 ## Why this vault exists
 
-This vault is a personal knowledge base that compounds over time.
-It stores daily notes, project documentation, reference topics, people profiles,
-and compiled knowledge — all accessible via AI agent (Telegram) and web UI.
+A personal knowledge base that compounds over time: daily notes, reference topics,
+people profiles, project docs, and compiled knowledge — searchable by AI agents
+(Mercury on the server via Telegram; OpenKnowledge on the desktop).
 
 ## Key questions it answers
 
@@ -16,20 +16,19 @@ and compiled knowledge — all accessible via AI agent (Telegram) and web UI.
 
 ## How it works
 
-1. **Raw notes** go into `raw/Daily/YYYY-MM-DD.md` with `## HH:MM - Title` sections
-2. **Reference topics** live in `raw/Topics/` and are linked via `[[Topics/name]]`
-3. **People and projects** are classified by frontmatter tags, not folders
-4. **Wiki compilation** (scheduled nightly) extracts entities, concepts, and
-   contradictions from raw notes into `wiki/`
-5. **Search** works via KiwiFS API (FTS5 + semantic) or ZENITH (local fallback)
+1. **Raw notes** go into `raw/` (daily files, topics, people, imports). Immutable.
+2. **OpenKB** (server, scheduled) compiles `raw/` into `wiki/{sources,summaries,concepts,entities}`
+   + `index.md`/`log.md`, incrementally and automatically.
+3. **OpenKnowledge** (desktop) reads the compiled wiki for retrieval and writes
+   `wiki/research/` (provisional) and `wiki/articles/` (canonical) on top of it.
+4. Everything is plain Markdown + `[[wikilinks]]`, versioned in git.
 
 ## Design principles
 
 | Principle | Practice |
 |-----------|----------|
-| **Immutable sources** | `raw/` is never modified by agents. Only humans create/edit here. |
-| **Compiled knowledge** | `wiki/` is owned by the agent. Overwritten freely. |
-| **Incremental updates** | Never rebuild the wiki. Only update affected pages. |
+| **Immutable sources** | `raw/` is never modified by agents. Only humans add/edit here. |
+| **Compiled knowledge** | `wiki/` is agent-maintained; OpenKB regenerates its layers, the agent curates research/articles. |
+| **Incremental updates** | Never rebuild from scratch; OpenKB only compiles new/changed files. |
 | **Contradictions are flagged** | Never silently resolved. Always surfaced. |
-| **Classification by tags** | Not by folder structure. Frontmatter over directory. |
-| **Daily notes first** | All new notes go into the daily file. Exceptions are rare. |
+| **One wiki, full pipeline** | From ingest (`sources/`) to consolidated knowledge (`articles/`) in a single `wiki/`. |

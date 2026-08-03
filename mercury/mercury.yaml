@@ -2,6 +2,9 @@
 #
 # Copy this file to ~/.mercury/mercury.yaml and fill in your values.
 # Environment variables (.env) are also supported for API keys.
+#
+# Used for the octarine-notes vault: OpenKB (server) + OpenKnowledge (desktop).
+# Provider here is MiniMax (used by Mercury and the OpenKB compile pipeline).
 
 identity:
   name: mercury
@@ -11,8 +14,8 @@ providers:
   openai:
     name: openai
     apiKey: "${OPENAI_API_KEY}"
-    baseUrl: ""      # e.g. https://api.openai.com/v1
-    model: ""        # e.g. gpt-4o-mini, deepseek-v4-flash-free
+    baseUrl: "https://api.minimax.io/v1"   # MiniMax OpenAI-compatible endpoint
+    model: "MiniMax-M3"                    # or e.g. gpt-4o-mini, deepseek-v4-flash-free
     enabled: true
 
 channels:
