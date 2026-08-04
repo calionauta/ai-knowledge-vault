@@ -6,7 +6,7 @@ description: >
   (fast, free). For synthesis questions, falls back to openkb query (LLM).
   All notes go into raw/Daily/YYYY-MM-DD.md with timestamped headings.
   CRITICAL: only report what commands return. Never fabricate data.
-version: 3.0.0
+version: 3.1.0
 intents:
   - search notes
   - find note
@@ -27,7 +27,7 @@ allowed-tools:
   - bash
 ---
 
-# Notes Search Skill v3
+# Notes Search Skill v3.1
 
 ## Vault layout
 
@@ -42,7 +42,7 @@ allowed-tools:
 1. Notes go into `raw/Daily/YYYY-MM-DD.md`. NEVER save elsewhere.
 2. NEVER modify existing `raw/` files. Only create today's daily or append to it.
 3. Never fabricate data — only report what commands return.
-4. Use filesystem tools for search; `openkb query` only for synthesis.
+4. Always search first (filesystem), offer synthesis second (openkb query).
 
 ## Daily note format
 
@@ -79,11 +79,9 @@ fi
 3. Append to today's daily as `## HH:MM - [Page Title](url)` with a description line.
    Do NOT add the page's own headings.
 
-## Search — two modes
+## Search — always filesystem first, synthesis optional
 
-### Mode 1: Filesystem search (fast, free)
-
-Use when: searching for a term, name, topic, or keyword.
+### Step 1: Filesystem search (always do this first)
 
 ```bash
 rg -l -i "<query>" "$VAULT/raw" "$VAULT/wiki"        # full text
@@ -91,55 +89,48 @@ rg -i -l "<query>" "$VAULT/raw/Daily"                # daily notes only
 git -C "$VAULT" log --oneline --since="3 days ago"   # recent changes
 ```
 
-For retrieval, prefer compiled pages: read `wiki/index.md`, then follow `[[wikilinks]]`.
+Return results to user. This is fast and free.
 
-### Mode 2: openkb query (synthesis, costs tokens)
+### Step 2: Offer synthesis (only if user asks)
 
-Use when: user asks a question that needs synthesis across multiple sources.
-Examples: "o que sei sobre X?", "como funciona Y?", "qual a relação entre A e B?"
+After showing filesystem results, ask:
+"Encontrei X resultados. Quer que eu sintetize com openkb query?"
 
-```bash
-cd "$VAULT" && source .env 2>/dev/null
-~/openkb-env/bin/openkb --kb-dir "$VAULT" query "<question>"
-```
+Only use openkb query if:
+- User explicitly asks for synthesis ("sintetize", "explique", "resuma")
+- User confirms after seeing filesystem results
+- User's original message was clearly a question needing cross-source analysis
 
-### How to decide which mode
-
-| Query pattern | Mode | Why |
-|---------------|------|-----|
-| Single term or name ("pricing", "Thiago") | Filesystem | Quick lookup, no cost |
-| "buscar X", "procurar X" | Filesystem | Explicit search request |
-| "o que sei sobre X", "como funciona Y" | openkb query | Needs synthesis |
-| "qual a relação entre A e B" | openkb query | Cross-source analysis |
-| "explique X", "resuma Y" | openkb query | LLM synthesis needed |
-| Question mark (?) at end | openkb query | It's a question |
-
-### Hybrid approach (recommended)
-
-1. **Always start with filesystem search** (fast, free) in both `raw/` and `wiki/`
-2. **If results are sufficient** → return them directly
-3. **If results are sparse OR user asks a synthesis question** → fall back to `openkb query`
-4. **Always tell the user** which mode was used
-
-Example flow:
-```
-User: "o que sei sobre pricing strategies?"
-  → rg "pricing" raw/ wiki/ → finds 12 files
-  → "Encontrei 12 arquivos. Quer que eu use openkb query para síntese?"
-  → User: "sim"
-  → openkb query "pricing strategies" → synthesized answer
-```
-
-## openkb query reference
-
-The `openkb query` command runs RAG over the compiled wiki using LLM.
-It costs tokens but provides synthesized answers.
+### Step 3: openkb query (when user confirms)
 
 ```bash
 cd "$VAULT" && source .env 2>/dev/null
 ~/openkb-env/bin/openkb --kb-dir "$VAULT" query "<question>"
 ```
 
-Prefer reading `wiki/index.md` + 1-2 concept pages directly over `openkb query`
-when possible — cheaper, stays in context. Use `openkb query` only when no
-obvious slug matches and a direct grep returns nothing useful.
+### Decision flow
+
+```
+User message
+  │
+  ├─ Is it explicitly a synthesis request? ("sintetize", "explique", "resuma")
+  │   └─ YES → openkb query directly
+  │
+  ├─ Is it a search term? ("buscar X", "procurar X", or just a keyword)
+  │   └─ YES → filesystem search, show results, offer synthesis
+  │
+  └─ Unclear?
+      └─ Start with filesystem, then offer synthesis
+```
+
+## Search capabilities
+
+| Method | What it searches | Semantic? | Cost |
+|--------|-----------------|-----------|------|
+| `rg` (ripgrep) | Text/lexical match in raw/ + wiki/ | No — keyword only | Free |
+| `openkb query` | Compiled wiki via LLM + PageIndex | Reasoning-based (not embeddings) | Tokens |
+| OpenKnowledge semantic (future) | Embeddings over wiki/ | Yes — true semantic | Local model or API |
+
+**Current state:** no true semantic search. `openkb query` is the closest (LLM reasoning
+over PageIndex), but it's not embeddings-based. For true semantic search, would need
+Ollama with embeddings model or OpenAI embeddings API.
