@@ -6,7 +6,7 @@ description: >
   articles/ layers from the desktop (OpenKnowledge). Ingest = drop files into
   raw/; compile = `openkb add`; curation = write wiki/research/ and
   wiki/articles/. Never modify raw/.
-version: 4.0.0
+version: 4.1.0
 intents:
   - compile wiki
   - ingest notes
@@ -95,6 +95,28 @@ SKILL_DIR="${SKILL_DIR:-$HOME/.mercury/skills/wiki-compilation}"
 - Curated pages: `type: Research|Article`, `status: draft|final`, `sources`, `supersedes`.
 - Wikilinks resolve relative to `wiki/`: `[[concepts/slug]]`, `[[summaries/slug]]`,
   `[[entities/slug]]`, `[[research/slug]]`, `[[articles/slug]]`. Piped aliases allowed.
+
+## Topic/tag conventions (`raw/Topics/`)
+
+1. **Naming: lowercase kebab-case.** `ai-native`, `machine-learning`. NEVER camelCase —
+   it breaks on acronyms (`aiNative` vs `AInative`) and is the root cause of
+   `ai` vs `AI-native` style duplicates. Existing single-word proper nouns
+   (`Region`, `Brasil`) stay as-is.
+2. **Link format in notes: tag as its own bullet, annotation indented below:**
+   ```markdown
+   - [[raw/Topics/ai-native]]
+       - annotation text
+   ```
+   Keeps the tag line a pure link (easy to grep/audit for duplicates), supports
+   multiple annotations under one tag, and long notes don't pollute the link.
+   Do NOT put the tag inline on the annotation line.
+3. **No duplicates — not even variations.** One canonical Topic per concept.
+   When creating a new Topic, first `grep -ri "Topics/" raw/` to check existing
+   spellings (singular vs plural, case). If a variation exists, reuse the
+   canonical one; merge+delete stubs rather than creating new files.
+4. **Canonical names post-dedup (Aug 2026):** `assumption`, `emotion`,
+   `experiment`, `psychedelic`, `reason` (singular wins); `arguments` (wins over
+   `arguing`); `adulto` (wins over `Adulti`); `ai` (wins over `AI-native`).
 
 ## Provider
 
