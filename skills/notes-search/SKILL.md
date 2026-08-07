@@ -56,6 +56,26 @@ allowed-tools:
 
 Time format `HHhMM` (Brazilian standard). No colons in headings.
 
+## Tag format (CRITICAL — do not invert)
+
+When annotating URLs or resources with topic tags, the **tags are the
+parent bullet (first line)**, and everything else is **indented below**:
+
+```
+- [[raw/Topics/Tools]] [[raw/Topics/OpenSource]]
+  - https://os.cloudflare.app/
+  - Cloudflare OS is the open source AI operating system...
+- [[raw/Topics/Tools]]
+  - https://drafted.ai/
+  - Drafted - Design your dream house plan with AI...
+```
+
+Rules:
+- Tags go FIRST, on the top-level bullet line.
+- URL and description go BELOW the tags, indented (2 spaces).
+- Multiple tags share the same bullet line, space-separated.
+- NEVER put the URL/description on the parent line and tags indented below.
+
 ## Save a note
 
 ```bash
