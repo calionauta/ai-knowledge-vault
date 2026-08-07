@@ -6,7 +6,7 @@ description: >
   (fast, free). For synthesis questions, falls back to openkb query (LLM).
   All notes go into raw/Daily/YYYY-MM-DD.md with timestamped headings.
   CRITICAL: only report what commands return. Never fabricate data.
-version: 3.1.0
+version: 3.3.0
 intents:
   - search notes
   - find note
@@ -27,7 +27,7 @@ allowed-tools:
   - bash
 ---
 
-# Notes Search Skill v3.1
+# Notes Search Skill v3.3
 
 ## Vault layout
 
@@ -56,26 +56,6 @@ allowed-tools:
 
 Time format `HHhMM` (Brazilian standard). No colons in headings.
 
-## Tag format (CRITICAL — do not invert)
-
-When annotating URLs or resources with topic tags, the **tags are the
-parent bullet (first line)**, and everything else is **indented below**:
-
-```
-- [[raw/Topics/Tools]] [[raw/Topics/OpenSource]]
-  - https://os.cloudflare.app/
-  - Cloudflare OS is the open source AI operating system...
-- [[raw/Topics/Tools]]
-  - https://drafted.ai/
-  - Drafted - Design your dream house plan with AI...
-```
-
-Rules:
-- Tags go FIRST, on the top-level bullet line.
-- URL and description go BELOW the tags, indented (2 spaces).
-- Multiple tags share the same bullet line, space-separated.
-- NEVER put the URL/description on the parent line and tags indented below.
-
 ## Save a note
 
 ```bash
@@ -94,10 +74,94 @@ fi
 
 ## Save from URL
 
+### Format for URL/link annotations (CRITICAL — do not invert)
+
+When saving a URL/link, the structure is three levels, in this exact order:
+
+1. **Tags** on the parent bullet (first line).
+2. **Link with title** indented below the tags — the title is the page title
+   obtained from the URL (`fetch_url`), used as the link text:
+   `[Page Title](url)`.
+3. **Description** indented one MORE level below the link (a bulletpoint under
+   the URL, NOT on the same level as the URL).
+
+```
+- [[raw/Topics/Tools]] [[raw/Topics/OpenSource]]
+  - [Cloudflare OS](https://os.cloudflare.app/)
+    - Cloudflare OS is the open source AI operating system companies can shape around...
+- [[raw/Topics/Tools]]
+  - [Drafted - Design your dream house plan with AI](https://drafted.ai/)
+    - Generate floor plans, 3D models, renders, and professional CAD/BIM exports. $16M funding.
+```
+
+Rules:
+- Title comes from the URL/page title (`fetch_url`), never invented.
+- The description is a child bullet of the link — always one indentation level
+  deeper than the URL line.
+- NEVER put description on the same line/level as the URL.
+
+### Steps
+
 1. Use `fetch_url` to get the page content.
-2. Extract the page title and meta description.
-3. Append to today's daily as `## HH:MM - [Page Title](url)` with a description line.
+2. Extract the page title (used as the link text) and meta description.
+3. Append to today's daily as tags → link → description (three-level format above).
    Do NOT add the page's own headings.
+
+## Tags (user convention)
+
+When the user asks to "tag" a note (or mentions tagging, tag name, etc.), a tag is a
+**wiki-link mention to a Topics page**, NOT a free-form word:
+
+- Single level: `[[raw/Topics/tag-exemplo]]`
+- Nested levels: `[[raw/Topics/nivel-1/nivel-2]]` (levels separated by `/`)
+- The braces in `{...}` above are placeholders only — never write literal braces.
+
+### Format in daily notes
+
+Use the tag as its own bullet, with the annotation indented below it:
+
+```
+- [[raw/Topics/tag-exemplo]]
+    - anotação
+```
+
+Multiple annotations under one tag keep the same indented level. A note can have
+multiple tag bullets. Never mix the tag and the annotation on the same line
+(keeps the tag line a pure link, easy to parse/audit).
+
+### Naming convention: kebab-case lowercase
+
+- Tag file names use **kebab-case lowercase** (`ai-native`, `machine-learning`,
+  `long-term-memory`). NO camelCase (breaks on acronyms: `aiNative` vs `AInative`
+  is ambiguous and caused the `ai` vs `AI-native` duplicate).
+- Proper nouns already established keep their exact existing name
+  (`Region`, `Brasil`) — single words, no variation risk.
+- Directory levels also kebab-case lowercase unless they are existing proper nouns.
+
+Rules:
+
+1. **Reuse existing Topics.** Before creating a new Topics file, search
+   `$VAULT/raw/Topics/` for an existing name with the same meaning, tolerating
+   variation in:
+   - plural/singular (e.g. `argument` vs `arguing`, `assumption` vs `assumptions`)
+   - gender (e.g. `Adulto` vs `Adulti`)
+   - capitalization/formatting (`ai` vs `AI-native`, `AIGemini`)
+   If an existing Topics page covers the same concept, use its exact path in the
+   mention. Only create a new Topics file when no existing one matches.
+2. Nested tags use existing subdirectory structure when present
+   (e.g. `Topics/Region/Brasil` already exists — use it instead of creating
+   `Topics/Brasil`).
+3. When a tag is used in a daily note, the mention links to the Topics page;
+   the Topics file itself is created in `raw/Topics/` (do not create it inside
+   `raw/Daily/`).
+
+### Canonical names (dedup audit, 2026-08-07)
+
+Plural losers deleted, singular winners canonical: `assumption`, `emotion`,
+`experiment`, `psychedelic`, `reason` (NOT `assumptions`, `emotions`,
+`experiments`, `psychedelics`, `reasons`). Also canonical: `arguments` (not
+`arguing`), `adulto` (not `Adulti`), `ai` (not `AI-native`). When tagging,
+always use these exact names.
 
 ## Search — always filesystem first, synthesis optional
 
