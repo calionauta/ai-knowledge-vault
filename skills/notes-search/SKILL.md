@@ -6,7 +6,7 @@ description: >
   (fast, free). For synthesis questions, falls back to openkb query (LLM).
   All notes go into raw/Daily/YYYY-MM-DD.md with timestamped headings.
   CRITICAL: only report what commands return. Never fabricate data.
-version: 3.3.0
+version: 3.4.0
 intents:
   - search notes
   - find note
@@ -27,7 +27,7 @@ allowed-tools:
   - bash
 ---
 
-# Notes Search Skill v3.3
+# Notes Search Skill v3.4
 
 ## Vault layout
 
@@ -99,12 +99,48 @@ Rules:
 - The description is a child bullet of the link — always one indentation level
   deeper than the URL line.
 - NEVER put description on the same line/level as the URL.
+- **Tool tags:** when the user indicates the URL is a Tool, ALWAYS use
+  `[[raw/Topics/Tools]]` as a tag. If the tool is open source, ALWAYS add
+  `[[raw/Topics/OpenSource]]` as well, both on the same parent bullet
+  (e.g. `- [[raw/Topics/Tools]] [[raw/Topics/OpenSource]]`). Apply automatically
+  whenever the user says "tool" / "opensource" — do not ask.
+
+### Existing URL check (ALWAYS before annotating)
+
+For EVERY URL the user asks to annotate, first search the vault for it:
+
+```bash
+rg -l -F "<url>" "$VAULT/raw" "$VAULT/wiki"
+```
+
+- **Not found** → proceed with the normal flow (fetch_url → append to today's daily).
+- **Found** → do NOT annotate immediately. Stop and confirm with the user, per URL:
+  1. **Duplicar (D)** — annotate again anyway (e.g. in today's daily as requested).
+  2. **Mover (M)** — move the existing annotation to the daily note the user is
+     requesting (delete from the old location, add to the new one).
+  3. **Enriquecer (E)** — keep it where it is; update that existing annotation
+     with the new title/description from `fetch_url` (as the skill already does).
+  4. **Ignorar (I)** — leave as is, skip this URL.
+
+> M and E modify an existing `raw/` file (exception to CRITICAL RULE #2) — only
+> execute them when the user explicitly chooses that option.
+
+For multiple URLs, present one compact numbered list so the user can answer
+easily, one letter per URL:
+
+```
+1. https://exemplo.com/foo — já anotada em 2026-08-05 → D/M/E/I
+2. https://exemplo.com/bar — já anotada em 2026-08-06 → D/M/E/I
+```
+
+The user replies like `1E 2M` (or "1 enriquecer, 2 mover") and you act on each.
 
 ### Steps
 
-1. Use `fetch_url` to get the page content.
-2. Extract the page title (used as the link text) and meta description.
-3. Append to today's daily as tags → link → description (three-level format above).
+1. Search for the URL in the vault (see "Existing URL check" above).
+2. Use `fetch_url` to get the page content.
+3. Extract the page title (used as the link text) and meta description.
+4. Append to today's daily as tags → link → description (three-level format above).
    Do NOT add the page's own headings.
 
 ## Tags (user convention)
