@@ -6,7 +6,7 @@ description: >
   (fast, free). For synthesis questions, falls back to openkb query (LLM).
   All notes go into raw/Daily/YYYY-MM-DD.md with timestamped headings.
   CRITICAL: only report what commands return. Never fabricate data.
-version: 3.4.0
+version: 3.5.0
 intents:
   - search notes
   - find note
@@ -27,11 +27,44 @@ allowed-tools:
   - bash
 ---
 
-# Notes Search Skill v3.4
+# Notes Search Skill v3.5
+
+## THE VAULT — SINGLE SOURCE OF TRUTH (CRITICAL, READ FIRST)
+
+**All notes, dailies, and URL annotations go to `calionauta/octarine-notes` ONLY.**
+
+| | |
+|---|---|
+| **Local path** | `/home/deploy/octarine-notes` |
+| **GitHub repo** | `https://github.com/calionauta/octarine-notes.git` |
+| **Purpose** | user's notes/knowledge vault — raw/ + wiki/ |
+
+**NEVER write notes, dailies, or URL annotations to `ai-knowledge-vault`**
+(`/home/deploy/ai-knowledge-vault`, GitHub `calionauta/ai-knowledge-vault`) — that
+repo exists ONLY to version Mercury's skills and the vault contract
+(`vault/AGENTS.md`), templates, and scripts. It must NEVER contain `raw/Daily/*`
+or any annotation content, not even in git history.
+
+Hard rule: any note/daily/URL annotation task = operate on
+`/home/deploy/octarine-notes`. If a tool defaults to `/home/deploy/ai-knowledge-vault`
+or you are unsure which repo you are in, check with `git -C <path> remote -v` and
+`pwd` FIRST. When in doubt: octarine-notes wins.
+
+`VAULT` is pinned here (do not fall back to `$HOME`): `VAULT=/home/deploy/octarine-notes`
+
+## Skills repo (how skills are versioned)
+
+Mercury's custom skills are versioned in `calionauta/ai-knowledge-vault` under
+`skills/<name>/SKILL.md` and deployed/copied to `~/.mercury/skills/<name>/SKILL.md`
+(the active copy Mercury loads). ALWAYS update BOTH:
+1. edit `skills/notes-search/SKILL.md` in `/home/deploy/ai-knowledge-vault`
+2. copy it to `/home/deploy/.mercury/skills/notes-search/SKILL.md`
+3. commit + push the ai-knowledge-vault repo
+This skill file is the canonical source for both locations.
 
 ## Vault layout
 
-`VAULT=${VAULT:-$HOME/octarine-notes}` — plain git repo, no external service.
+`VAULT=/home/deploy/octarine-notes` — plain git repo, no external service.
 
 - `raw/Daily/YYYY-MM-DD.md` — daily notes (`## HHhMM - Title` sections)
 - `raw/` — other immutable source notes (topics, people, imports)
@@ -39,7 +72,7 @@ allowed-tools:
 
 ## CRITICAL RULES
 
-1. Notes go into `raw/Daily/YYYY-MM-DD.md`. NEVER save elsewhere.
+1. Notes go into `raw/Daily/YYYY-MM-DD.md` in `/home/deploy/octarine-notes`. NEVER save elsewhere (never ai-knowledge-vault).
 2. NEVER modify existing `raw/` files. Only create today's daily or append to it.
 3. Never fabricate data — only report what commands return.
 4. Always search first (filesystem), offer synthesis second (openkb query).

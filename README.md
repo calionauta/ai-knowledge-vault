@@ -1,5 +1,11 @@
 # ai-knowledge-vault
 
+> ⚠️ **THIS REPO IS FOR SKILLS ONLY — NEVER NOTES.**
+> No dailies, no URL annotations, no `raw/` content ever lives here — not even
+> in git history. The user's notes/knowledge vault is **`calionauta/octarine-notes`**
+> (local: `/home/deploy/octarine-notes`). If a task is about notes, dailies, or
+> URL annotations, it goes to octarine-notes — never here.
+
 Source of truth for the knowledge vault: the **wiki-compilation skill**
 (used by Mercury on the server), the **notes-search skill** (Mercury + openkb query),
 the **vault contract** (`vault/AGENTS.md`, deployed as `wiki/AGENTS.md`), and templates.
