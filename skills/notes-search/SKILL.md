@@ -254,3 +254,19 @@ User message
 **Current state:** no true semantic search. `openkb query` is the closest (LLM reasoning
 over PageIndex), but it's not embeddings-based. For true semantic search, would need
 Ollama with embeddings model or OpenAI embeddings API.
+
+## Task completion & git discipline (ALWAYS)
+
+After ANY task that edits files or runs git, you MUST send a final message to the
+user summarizing what was done before finishing. Even when the work happened via
+tool calls (edit/run_command), end with a concise reply: what changed, where, and
+the result. Never finish a task silently.
+
+Git rules when pushing to a repo:
+
+1. ALWAYS run `git pull --rebase origin main` BEFORE `git push origin main`
+   (avoids "fetch first" rejections when the remote moved).
+2. ALWAYS push to the branch `main` (never `master`).
+3. After push, report success/failure explicitly in the final message.
+4. If a push is rejected, fix the conflict/rebase and retry — do not leave the
+   repo with unpushed commits without telling the user.
